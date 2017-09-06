@@ -16,8 +16,10 @@ namespace Exercise1
             var jaccard = new Jaccard();
 
             var result = jaccard.CompareDocuments(string1, string2, 3);
+            var result2 = jaccard.CompareDocumentsTrickOne(string1, string2, 3);
 
             Console.WriteLine("Result: {0}", result);
+            Console.WriteLine("Result (Trick 1): {0}", result2);
         }
     }
 }
