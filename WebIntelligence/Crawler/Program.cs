@@ -1,9 +1,6 @@
 ﻿using System;
+using System.Net;
 using Crawler.Modules;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Crawler
 {
@@ -24,7 +21,12 @@ namespace Crawler
             Console.WriteLine("Result (Trick 1): {0}", result2);
             */
 
-            var parser = new RobotsParser(@"D:\___Projects\_UniStuff\WI\WebIntelligence\_TestFiles\Robots\kaffeteriet.txt");
+            //var parser = new RobotsParser(@"..\..\..\_TestFiles\Robots\kaffeteriet.txt");
+            var webClient = new WebClient();
+            webClient.Headers.Set(HttpRequestHeader.UserAgent, "BlazingskiesCrawler/0.1");
+
+            var stream = webClient.OpenRead(@"https://kaffeteriet.dk/robots.txt");
+            var parser = new RobotsParser(stream);
 
             string[] urlsToTest = {
                 @"https://kaffeteriet.dk/collections/filterkaffe-bonner",
@@ -41,6 +43,8 @@ namespace Crawler
             {
                 Console.WriteLine("Testing: {0} - {1}", url, (parser.IsAllowed(url) ? "YES" : "NO"));
             }
+
+            stream.Close();
 
             Console.ReadLine();
         }
