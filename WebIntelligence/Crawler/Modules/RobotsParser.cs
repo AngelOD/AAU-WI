@@ -7,27 +7,27 @@ namespace Crawler.Modules
 {
     class RobotsParser
     {
-        private HashSet<string> disallowedList;
-        private Int64 crawlDelay = 1;
-        private Dictionary<string, Regex> regexes;
+        private readonly HashSet<string> _disallowedList;
+        private Int64 _crawlDelay = 1;
+        private readonly Dictionary<string, Regex> _regexes;
 
         /// <summary>
         /// 
         /// </summary>
-        protected HashSet<string> DisallowedList { get => disallowedList; }
+        protected HashSet<string> DisallowedList { get => this._disallowedList; }
 
         /// <summary>
         /// 
         /// </summary>
-        public Int64 CrawlDelay { get => crawlDelay; protected set => crawlDelay = value; }
+        public Int64 CrawlDelay { get => this._crawlDelay; protected set => this._crawlDelay = value; }
 
         /// <summary>
         /// 
         /// </summary>
         protected RobotsParser()
         {
-            disallowedList = new HashSet<string>();
-            regexes = new Dictionary<string, Regex>()
+            this._disallowedList = new HashSet<string>();
+            this._regexes = new Dictionary<string, Regex>()
             {
                 { "userAgent", new Regex("^[Uu]ser-[Aa]gent: (.*)$") },
                 { "disallow", new Regex("^[Dd]isallow: (.*)$") },
@@ -164,7 +164,7 @@ namespace Crawler.Modules
                     continue;
                 }
 
-                var uaTest = regexes["userAgent"].Match(line);
+                var uaTest = this._regexes["userAgent"].Match(line);
 
                 if (uaTest.Success)
                 {
@@ -178,7 +178,7 @@ namespace Crawler.Modules
                     continue;
                 }
 
-                var dTest = regexes["disallow"].Match(line);
+                var dTest = this._regexes["disallow"].Match(line);
 
                 if (dTest.Success)
                 {
@@ -192,7 +192,7 @@ namespace Crawler.Modules
                     continue;
                 }
 
-                var cdTest = regexes["crawlDelay"].Match(line);
+                var cdTest = this._regexes["crawlDelay"].Match(line);
 
                 if (cdTest.Success)
                 {
