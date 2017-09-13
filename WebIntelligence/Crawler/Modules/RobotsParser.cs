@@ -5,28 +5,26 @@ using System.Text.RegularExpressions;
 
 namespace Crawler.Modules
 {
-    class RobotsParser
+    internal class RobotsParser
     {
-        private readonly HashSet<string> _disallowedList;
-        private Int64 _crawlDelay = 1;
         private readonly Dictionary<string, Regex> _regexes;
 
         /// <summary>
         /// 
         /// </summary>
-        protected HashSet<string> DisallowedList { get => this._disallowedList; }
+        protected HashSet<string> DisallowedList { get; }
 
         /// <summary>
         /// 
         /// </summary>
-        public Int64 CrawlDelay { get => this._crawlDelay; protected set => this._crawlDelay = value; }
+        public long CrawlDelay { get; protected set; } = 1;
 
         /// <summary>
         /// 
         /// </summary>
         protected RobotsParser()
         {
-            this._disallowedList = new HashSet<string>();
+            this.DisallowedList = new HashSet<string>();
             this._regexes = new Dictionary<string, Regex>()
             {
                 { "userAgent", new Regex("^[Uu]ser-[Aa]gent: (.*)$") },
@@ -35,22 +33,27 @@ namespace Crawler.Modules
             };
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="filePath"></param>
         public RobotsParser(string filePath) : this()
         {
-            if (!ReadFile(filePath))
+            if (!this.ReadFile(filePath))
             {
                 // TODO Do something here if it fails?
                 Console.WriteLine("Couldn't read the file for some reason.");
             }
         }
 
+        /// <inheritdoc />
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="stream"></param>
         public RobotsParser(Stream stream) : this()
         {
-            if (!ReadStream(stream))
+            if (!this.ReadStream(stream))
             {
                 // TODO Do something here if it fails?
                 Console.WriteLine("Failed to read the stream.");
@@ -63,9 +66,9 @@ namespace Crawler.Modules
         /// <param name="entry"></param>
         protected void AddDisallowedEntry(string entry)
         {
-            if (String.IsNullOrEmpty(entry)) { return; }
+            if (string.IsNullOrEmpty(entry)) { return; }
 
-            DisallowedList.Add(PatternizeString(entry));
+            this.DisallowedList.Add(this.PatternizeString(entry));
         }
 
         /// <summary>
@@ -77,7 +80,7 @@ namespace Crawler.Modules
         protected string PatternizeString(string pseudoPattern)
         {
             // Escape special characters
-            string newPattern = Regex.Replace(pseudoPattern, @"([?+\[\]\\.])", "\\$1");
+            var newPattern = Regex.Replace(pseudoPattern, @"([?+\[\]\\.])", "\\$1");
 
             // Then replace * wildcards with the regex version
             newPattern = Regex.Replace(newPattern, @"\*", ".*?");
@@ -96,7 +99,7 @@ namespace Crawler.Modules
 
             var file = new StreamReader(filePath);
 
-            var result = ProcessLines(file);
+            var result = this.ProcessLines(file);
 
             file.Close();
 
@@ -117,7 +120,7 @@ namespace Crawler.Modules
 
             var reader = new StreamReader(stream);
 
-            var result = ProcessLines(reader);
+            var result = this.ProcessLines(reader);
 
             reader.Close();
 
@@ -131,7 +134,7 @@ namespace Crawler.Modules
         /// <returns></returns>
         public bool IsAllowed(string path)
         {
-            foreach (var entry in DisallowedList)
+            foreach (var entry in this.DisallowedList)
             {
                 if (Regex.IsMatch(path, entry)) { return false; }
             }
@@ -142,7 +145,7 @@ namespace Crawler.Modules
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="line"></param>
+        /// <param name="streamReader"></param>
         /// <returns></returns>
         protected bool ProcessLines(StreamReader streamReader)
         {
@@ -153,7 +156,7 @@ namespace Crawler.Modules
             {
                 line = line.Trim();
 
-                if (String.IsNullOrEmpty(line))
+                if (string.IsNullOrEmpty(line))
                 {
                     if (doRegister)
                     {
@@ -184,9 +187,9 @@ namespace Crawler.Modules
                 {
                     var entry = dTest.Groups[1].Value.Trim();
 
-                    if (!String.IsNullOrEmpty(entry) && doRegister)
+                    if (!string.IsNullOrEmpty(entry) && doRegister)
                     {
-                        AddDisallowedEntry(entry);
+                        this.AddDisallowedEntry(entry);
                     }
 
                     continue;
@@ -196,9 +199,9 @@ namespace Crawler.Modules
 
                 if (cdTest.Success)
                 {
-                    if (Int64.TryParse(cdTest.Groups[1].Value, out long crawlDelay))
+                    if (long.TryParse(cdTest.Groups[1].Value, out long crawlDelay))
                     {
-                        CrawlDelay = crawlDelay;
+                        this.CrawlDelay = crawlDelay;
                     }
 
                     continue;

@@ -4,9 +4,9 @@ using Crawler.Modules;
 
 namespace Crawler
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             /*
             var string1 = "Do not worry about your difficulties in mathematics";
