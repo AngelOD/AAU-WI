@@ -43,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Models\RobotsNode.cs" />
+    <Compile Include="Modules\Crawler.cs" />
     <Compile Include="Modules\RobotsParser.cs" />
     <Compile Include="Jaccard.cs" />
     <Compile Include="Program.cs" />

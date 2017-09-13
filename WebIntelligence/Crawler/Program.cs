@@ -44,7 +44,7 @@ namespace Crawler
                 Console.WriteLine("Testing: {0} - {1}", url, (parser.IsAllowed(url) ? "YES" : "NO"));
             }
 
-            stream.Close();
+            stream?.Close();
 
             Console.ReadLine();
         }
