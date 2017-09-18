@@ -28,23 +28,15 @@ namespace Crawler
             var stream = webClient.OpenRead(@"https://kaffeteriet.dk/robots.txt");
             var parser = new RobotsParser(stream);
 
-            string[] urlsToTest = {
-                @"https://kaffeteriet.dk/collections/filterkaffe-bonner",
-                @"https://kaffeteriet.dk/blogs/news",
-                @"https://kaffeteriet.dk/collections/kaffe-og-kaffeudstyr-pa-tilbud",
-                @"https://kaffeteriet.dk/collections/iskaffebryggere",
-                @"https://kaffeteriet.dk/cart",
-                @"https://kaffeteriet.dk/collections/iskaffebryggere+woot",
-                @"https://kaffeteriet.dk/collections/iskaffebryggere%2Bwoot",
-                @"https://kaffeteriet.dk/collections/iskaffebryggere%2bwoot",
-            };
-
-            foreach (var url in urlsToTest)
-            {
-                Console.WriteLine("Testing: {0} - {1}", url, (parser.IsAllowed(url) ? "YES" : "NO"));
-            }
-
             stream?.Close();
+
+            var crawler = new Modules.Crawler();
+            var links = crawler.ParsePage(new Uri("https://www.kaffeteriet.dk"));
+
+            foreach (var link in links)
+            {
+                Console.WriteLine("{0} ({1})", link, (parser.IsAllowed(link) ? "YES" : "NO"));
+            }
 
             Console.ReadLine();
         }
