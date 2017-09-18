@@ -42,10 +42,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Models\RobotsNode.cs" />
+    <Compile Include="Models\CrawlerLink.cs" />
+    <Compile Include="Models\CrawlerRegistry.cs" />
     <Compile Include="Modules\Crawler.cs" />
     <Compile Include="Modules\RobotsParser.cs" />
-    <Compile Include="Jaccard.cs" />
+    <Compile Include="Modules\Jaccard.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

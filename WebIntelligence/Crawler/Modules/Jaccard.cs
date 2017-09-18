@@ -44,7 +44,7 @@ namespace Crawler
             return (decimal)overlap / permutations.Length;
         }
 
-        protected List<string> ShinglifyDocument(string document, int n = 4)
+        public List<string> ShinglifyDocument(string document, int n = 4)
         {
             var list = new List<string>();
             var newDoc = Regex.Replace(document.ToLower(), "[^a-z0-9 ]", "");
@@ -59,7 +59,7 @@ namespace Crawler
             return list;
         }
 
-        protected ulong[] HashedShinglifyDocument(string document, int n = 4)
+        public ulong[] HashedShinglifyDocument(string document, int n = 4)
         {
             var returnList = new LinkedList<ulong>();
             var shingles = ShinglifyDocument(document, n);
