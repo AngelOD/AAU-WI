@@ -3,14 +3,20 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Crawler.Models;
 
 namespace Crawler.Modules
 {
     public class Crawler
     {
-        protected const string UserAgent = "BlazingskiesCrawler/v0.1 (tristan@blazingskies.dk)";
+        protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
 
         private WebClient _webClient;
+
+        public Crawler()
+        {
+            this.Queue = new CrawlerQueue();
+        }
 
         protected WebClient WebClient
         {
@@ -23,6 +29,8 @@ namespace Crawler.Modules
                 return this._webClient;
             }
         }
+
+        protected CrawlerQueue Queue { get; }
 
         public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
 
@@ -40,23 +48,27 @@ namespace Crawler.Modules
             return outputUri.AbsoluteUri;
         }
 
-        public HashSet<string> ParsePage(Uri pageUri)
+        public CrawlerLink ParsePage(Uri pageUri)
         {
             var wc = this.WebClient;
             var pageSource = wc.DownloadString(pageUri);
-            var uris = new HashSet<string>();
+            var baseAddress = pageUri.GetLeftPart(UriPartial.Path);
+
+            // Extract links
             var linkRegex = new Regex("<a.*?href=(['\"])(?<Link>.*?)\\1.*?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
             var matches = linkRegex.Matches(pageSource);
 
             foreach (Match match in matches)
             {
                 var link = match.Groups["Link"];
-                var newUri = this.NormalizeUri(pageUri.GetLeftPart(UriPartial.Path), link.Value);
+                var newUri = this.NormalizeUri(baseAddress, link.Value);
 
-                uris.Add(newUri);
+                this.Queue.AddLink(newUri);
             }
 
-            return uris;
+            // Extract text
+            var bodyRegex = new Regex("^.?[<]body[>](?<contents>.*?)[<]/body[>].*$");
+            var scriptRegex = new Regex("[<]script.*?[>].*?[<]/script[>]");
         }
     }
 }
