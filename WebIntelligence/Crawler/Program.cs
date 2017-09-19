@@ -31,12 +31,7 @@ namespace Crawler
             stream?.Close();
 
             var crawler = new Modules.Crawler();
-            var links = crawler.ParsePage(new Uri("https://www.kaffeteriet.dk"));
-
-            foreach (var link in links)
-            {
-                Console.WriteLine("{0} ({1})", link, (parser.IsAllowed(link) ? "YES" : "NO"));
-            }
+            crawler.ParsePage(new Uri("https://www.kaffeteriet.dk"));
 
             Console.ReadLine();
         }
