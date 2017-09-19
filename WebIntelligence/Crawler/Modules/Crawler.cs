@@ -53,6 +53,11 @@ namespace Crawler.Modules
                                     "multiSpaces",
                                     new Regex("[ ]{2,}",
                                     RegexOptions.Compiled)
+                                },
+                                {
+                                    "nonLetters",
+                                    new Regex("\\P{L}",
+                                    RegexOptions.Compiled)
                                 }
                             };
 
@@ -99,9 +104,7 @@ namespace Crawler.Modules
 
             // Extract links
             Console.Write("Extracting links... ");
-
-            var linkRegex = this.Regexes["links"];
-            var matches = linkRegex.Matches(pageSource);
+            var matches = this.Regexes["links"].Matches(pageSource);
 
             foreach (Match match in matches)
             {
@@ -116,8 +119,7 @@ namespace Crawler.Modules
             // Extract text from body
             Console.Write("Extracting body...");
 
-            var bodyRegex = this.Regexes["body"];
-            var bodyMatch = bodyRegex.Match(pageSource);
+            var bodyMatch = this.Regexes["body"].Match(pageSource);
 
             if (bodyMatch.Groups.Count == 0)
             {
@@ -128,17 +130,11 @@ namespace Crawler.Modules
 
             // Clean up the body text
             Console.Write("Cleaning up document, resulting in lengths: ");
-            var scriptRegex = this.Regexes["scripts"];
-            var styleRegex = this.Regexes["styles"];
-            var tagRegex = this.Regexes["tags"];
-            var lineBreakRegex = this.Regexes["lineBreaks"];
-            var multiSpaceRegex = this.Regexes["multiSpaces"];
-
-            var bodyText = scriptRegex.Replace(bodyMatch.Groups["contents"].Value, "");
+            var bodyText = this.Regexes["scripts"].Replace(bodyMatch.Groups["contents"].Value, " ");
             Console.Write("{0}, ", bodyText.Length);
-            bodyText = styleRegex.Replace(bodyText, "");
+            bodyText = this.Regexes["styles"].Replace(bodyText, " ");
             Console.Write("{0}, ", bodyText.Length);
-            bodyText = tagRegex.Replace(bodyText, "");
+            bodyText = this.Regexes["tags"].Replace(bodyText, " ");
             Console.WriteLine("{0}", bodyText.Length);
 
             // Decode HTML entities
@@ -148,13 +144,20 @@ namespace Crawler.Modules
 
             // Removing line breaks
             Console.Write("Removing line breaks... ");
-            bodyText = lineBreakRegex.Replace(bodyText, " ");
+            bodyText = this.Regexes["lineBreaks"].Replace(bodyText, " ");
+            Console.WriteLine("New length: {0}", bodyText.Length);
+
+            // Remove anything that aren't letters
+            Console.Write("Cleaning non-letters from document... ");
+            bodyText = this.Regexes["nonLetters"].Replace(bodyText.ToLower(), " ");
             Console.WriteLine("New length: {0}", bodyText.Length);
 
             // Removing multi-spaces
             Console.Write("Condensing multiple spaces... ");
-            bodyText = multiSpaceRegex.Replace(bodyText, " ");
+            bodyText = this.Regexes["multiSpaces"].Replace(bodyText, " ");
             Console.WriteLine("New length: {0}", bodyText.Length);
+
+            Console.WriteLine(bodyText);
 
             return new CrawlerLink(pageUri.AbsoluteUri, bodyText);
         }
