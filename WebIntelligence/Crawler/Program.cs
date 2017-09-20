@@ -25,13 +25,21 @@ namespace Crawler
             var webClient = new WebClient();
             webClient.Headers.Set(HttpRequestHeader.UserAgent, "BlazingskiesCrawler/0.1");
 
-            var stream = webClient.OpenRead(@"https://kaffeteriet.dk/robots.txt");
+            var stream = webClient.OpenRead(@"http://www.freeos.com/robots.txt");
             var parser = new RobotsParser(stream);
 
             stream?.Close();
 
             var crawler = new Modules.Crawler();
-            crawler.ParsePage(new Uri("https://www.kaffeteriet.dk"));
+            var page = crawler.ParsePage(new Uri(@"http://www.freeos.com/guides/lsst/"));
+
+            var tokens = page.Tokens;
+
+            foreach (var token in tokens)
+            {
+                Console.Write("{0}, ", token);
+            }
+            Console.WriteLine();
 
             Console.ReadLine();
         }

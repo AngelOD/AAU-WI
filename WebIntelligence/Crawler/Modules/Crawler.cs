@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Crawler.Helpers;
 using Crawler.Models;
 
 namespace Crawler.Modules
@@ -17,6 +18,7 @@ namespace Crawler.Modules
         public Crawler()
         {
             this.Queue = new CrawlerQueue();
+            this.LocalQueue = new CrawlerQueue();
             this._regexes = new Dictionary<string, Regex>
                             {
                                 {
@@ -31,17 +33,17 @@ namespace Crawler.Modules
                                 },
                                 {
                                     "scripts",
-                                    new Regex("[<]script.*?[>].*?[<]/script[>]",
+                                    new Regex("<script[^>]*>.*?</script>",
                                               RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
                                 },
                                 {
                                     "styles",
-                                    new Regex("[<]style.*?[>].*?[<]/script[>]",
+                                    new Regex("<style[^>]*>.*?</style>",
                                     RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline)
                                 },
                                 {
                                     "tags",
-                                    new Regex("[<].+?[>]",
+                                    new Regex("<[^>]+>",
                                     RegexOptions.Compiled | RegexOptions.Singleline)
                                 },
                                 {
@@ -77,6 +79,7 @@ namespace Crawler.Modules
         }
 
         protected CrawlerQueue Queue { get; }
+        protected CrawlerQueue LocalQueue { get; }
 
         public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
 
@@ -98,40 +101,61 @@ namespace Crawler.Modules
         {
             Console.Write("Downloading page... ");
             var wc = this.WebClient;
-            var pageSource = wc.DownloadString(pageUri);
+            var pageSource = wc.DownloadStringAwareOfEncoding(pageUri);
             var baseAddress = pageUri.GetLeftPart(UriPartial.Path);
+            var baseUri = new Uri(baseAddress);
             Console.WriteLine("Length: {0}", pageSource.Length);
 
             // Extract links
             Console.Write("Extracting links... ");
             var matches = this.Regexes["links"].Matches(pageSource);
+            var localCount = 0;
+            var externCount = 0;
 
             foreach (Match match in matches)
             {
-                var link = match.Groups["link"];
-                var newUri = this.NormalizeUri(baseAddress, link.Value);
+                try
+                {
+                    var link = match.Groups["link"];
+                    var newUri = this.NormalizeUri(baseAddress, link.Value);
 
-                this.Queue.AddLink(newUri);
+                    if (baseUri.IsBaseOf(new Uri(newUri)))
+                    {
+                        this.LocalQueue.AddLink(newUri);
+                        localCount++;
+                    }
+                    else
+                    {
+                        this.Queue.AddLink(newUri);
+                        externCount++;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Ignore exception
+                }
             }
 
-            Console.WriteLine("Found {0}", matches.Count);
+            Console.WriteLine("Found {0} ({1} local, {2} extern)", matches.Count, localCount, externCount);
+
+            Console.Write("Removing script areas... ");
+            var noScriptText = this.Regexes["scripts"].Replace(pageSource, " ");
+            Console.WriteLine("Length: {0}", noScriptText.Length);
 
             // Extract text from body
             Console.Write("Extracting body...");
-
-            var bodyMatch = this.Regexes["body"].Match(pageSource);
+            var bodyMatch = this.Regexes["body"].Match(noScriptText);
 
             if (bodyMatch.Groups.Count == 0)
             {
                 throw new FormatException("Empty body");
             }
 
-            Console.WriteLine("Length: {0}", bodyMatch.Groups[0].Length);
+            Console.WriteLine("Length: {0}", bodyMatch.Groups["contents"].Length);
+            var bodyText = bodyMatch.Groups["contents"].Value;
 
             // Clean up the body text
             Console.Write("Cleaning up document, resulting in lengths: ");
-            var bodyText = this.Regexes["scripts"].Replace(bodyMatch.Groups["contents"].Value, " ");
-            Console.Write("{0}, ", bodyText.Length);
             bodyText = this.Regexes["styles"].Replace(bodyText, " ");
             Console.Write("{0}, ", bodyText.Length);
             bodyText = this.Regexes["tags"].Replace(bodyText, " ");
@@ -157,9 +181,39 @@ namespace Crawler.Modules
             bodyText = this.Regexes["multiSpaces"].Replace(bodyText, " ");
             Console.WriteLine("New length: {0}", bodyText.Length);
 
-            Console.WriteLine(bodyText);
-
             return new CrawlerLink(pageUri.AbsoluteUri, bodyText);
+        }
+
+        public void Crawl(IEnumerable<string> seedUris)
+        {
+            this.SetSeedUris(seedUris);
+            this.Crawl();
+        }
+
+        public void Crawl()
+        {
+            
+        }
+
+        public void SetSeedUris(IEnumerable<string> seedUris)
+        {
+            Uri baseUri = null;
+
+            foreach (var seedUri in seedUris)
+            {
+                if (baseUri == null)
+                {
+                    var tmpUri = new Uri(seedUri);
+                    baseUri = new Uri(tmpUri.GetLeftPart(UriPartial.Path));
+
+                    this.LocalQueue.AddLink(seedUri);
+                }
+                else
+                {
+                    if (baseUri.IsBaseOf(new Uri(seedUri))) { this.LocalQueue.AddLink(seedUri); }
+                    else { this.Queue.AddLink(seedUri); }
+                }
+            }
         }
     }
 }

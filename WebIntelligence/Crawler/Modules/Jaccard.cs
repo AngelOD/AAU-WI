@@ -27,54 +27,78 @@ namespace Crawler
 
         public decimal CompareDocumentsTrickOne(string doc1, string doc2, int shingleSize = 4)
         {
-            var docOneHashes = HashedShinglifyDocument(doc1, shingleSize);
-            var docTwoHashes = HashedShinglifyDocument(doc2, shingleSize);
+            var docOneHashes = this.HashedShinglifyDocument(doc1, shingleSize);
+            var docTwoHashes = this.HashedShinglifyDocument(doc2, shingleSize);
 
-            int overlap = 0;
-            int permCount = permutations.Length;
+            return this.CompareDocumentsTrickOne(docOneHashes, docTwoHashes);
+        }
 
-            for (int i = 0; i < permCount; i++)
+        public decimal CompareDocumentsTrickOne(ulong[] doc1, ulong[] doc2)
+        {
+            var overlap = 0;
+            var permCount = this.permutations.Length;
+
+            for (var i = 0; i < permCount; i++)
             {
-                if (docOneHashes[i] == docTwoHashes[i])
+                if (doc1[i] == doc2[i])
                 {
                     overlap++;
                 }
             }
 
-            return (decimal)overlap / permutations.Length;
+            return (decimal)overlap / this.permutations.Length;
         }
 
-        public List<string> ShinglifyDocument(string document, int n = 4)
+        public List<string> ShinglifyDocument(string[] words, int n = 4)
         {
             var list = new List<string>();
-            var newDoc = Regex.Replace(document.ToLower(), "[^a-z0-9 ]", "");
-            var words = newDoc.ToLower().Split(' ');
             var shingleCount = words.Length - n;
 
             for (var i = 0; i <= shingleCount; i++)
             {
-                list.Add(String.Join(" ", words, i, n));
+                list.Add(string.Join(" ", words, i, n));
             }
 
             return list;
         }
 
+        public List<string> ShinglifyDocument(string document, int n = 4)
+        {
+            var newDoc = Regex.Replace(document.ToLower(), "[^a-z0-9 ]", "");
+            var words = newDoc.ToLower().Split(' ');
+
+            return this.ShinglifyDocument(words, n);
+        }
+
+        public ulong[] HashedShinglifyDocument(string[] words, int n = 4)
+        {
+            var shingles = this.ShinglifyDocument(words, n);
+
+            return this.HashedShinglifyDocumentWorker(shingles);
+        }
+
         public ulong[] HashedShinglifyDocument(string document, int n = 4)
         {
-            var returnList = new LinkedList<ulong>();
-            var shingles = ShinglifyDocument(document, n);
-            ulong[] baseHashes = (from shingle in shingles
-                                select (ulong)shingle.GetHashCode()).ToArray();
-            var permCount = permutations.Length;
+            var shingles = this.ShinglifyDocument(document, n);
 
-            for (int i = 0; i < permCount; i++)
+            return this.HashedShinglifyDocumentWorker(shingles).ToArray();
+        }
+
+        private ulong[] HashedShinglifyDocumentWorker(IEnumerable<string> shingles)
+        {
+            var returnList = new LinkedList<ulong>();
+            var baseHashes = (from shingle in shingles
+                              select (ulong)shingle.GetHashCode()).ToArray();
+            var permCount = this.permutations.Length;
+
+            for (var i = 0; i < permCount; i++)
             {
-                ulong permutation = permutations[i];
-                ulong minHash = ulong.MaxValue;
+                var permutation = this.permutations[i];
+                var minHash = ulong.MaxValue;
 
                 foreach (var baseHash in baseHashes)
                 {
-                    ulong tmpHash = baseHash;
+                    var tmpHash = baseHash;
 
                     if (permutation > 0)
                     {

@@ -42,6 +42,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Helpers\PorterStemmer.cs" />
+    <Compile Include="Helpers\StopWords.cs" />
+    <Compile Include="Helpers\WebClientExtensions.cs" />
+    <Compile Include="Helpers\WebUtils.cs" />
     <Compile Include="Models\CrawlerLink.cs" />
     <Compile Include="Models\CrawlerQueue.cs" />
     <Compile Include="Models\CrawlerRegistry.cs" />
