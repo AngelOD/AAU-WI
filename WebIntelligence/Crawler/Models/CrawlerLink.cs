@@ -11,6 +11,7 @@ namespace Crawler.Models
         public string Address { get; protected set; }
         public LinkedList<ulong> ShingleHashes { get; protected set; }
         public HashSet<string> Tokens { get; protected set; }
+        public Dictionary<string, int> Keywords { get; protected set; }
 
         public CrawlerLink(string address, string contents)
         {
@@ -26,7 +27,27 @@ namespace Crawler.Models
 
             // Apply stemming
             var stemmer = new PorterStemmer();
-            this.Tokens = new HashSet<string>(tokens.Select(token => stemmer.StemWord(token)));
+            var stemmedTokens = new List<string>(tokens.Select(token => stemmer.StemWord(token)));
+            this.Tokens = new HashSet<string>(stemmedTokens);
+
+            // Sort elements
+            stemmedTokens.Sort();
+
+            // Get keyword count
+            var lastKeyword = "";
+            var keywords = new Dictionary<string, int>();
+
+            foreach (var stemmedToken in stemmedTokens)
+            {
+                if (!stemmedToken.Equals(lastKeyword))
+                {
+                    lastKeyword = stemmedToken;
+                    keywords[stemmedToken] = 1;
+                }
+                else { keywords[stemmedToken] += 1; }
+            }
+
+            this.Keywords = keywords;
         }
     }
 }

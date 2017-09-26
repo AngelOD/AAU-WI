@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using Crawler.Modules;
 
@@ -33,12 +35,24 @@ namespace Crawler
             var crawler = new Modules.Crawler();
             var page = crawler.ParsePage(new Uri(@"http://www.freeos.com/guides/lsst/"));
 
+            crawler.SetSeedUris(new List<string>(){ "http://www.freeos.com/guides/lsst/" });
+
             var tokens = page.Tokens;
 
             foreach (var token in tokens)
             {
                 Console.Write("{0}, ", token);
             }
+            Console.WriteLine();
+            Console.WriteLine();
+
+            var keywords = page.Keywords;
+
+            foreach (var keyword in keywords.OrderByDescending(i => i.Value))
+            {
+                Console.Write("{0} ({1}), ", keyword.Key, keyword.Value);
+            }
+            Console.WriteLine();
             Console.WriteLine();
 
             Console.ReadLine();

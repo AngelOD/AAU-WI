@@ -12,14 +12,16 @@ namespace Crawler.Modules
     {
         protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
 
-        private readonly Dictionary<string, Regex> _regexes;
         private WebClient _webClient;
 
         public Crawler()
         {
+            this.CrawledPages = new HashSet<string>();
             this.Queue = new CrawlerQueue();
             this.LocalQueue = new CrawlerQueue();
-            this._regexes = new Dictionary<string, Regex>
+            this.PageRegistry = new CrawlerRegistry();
+            this.RobotsParsers = new Dictionary<string, RobotsParser>();
+            this.Regexes = new Dictionary<string, Regex>
                             {
                                 {
                                     "links",
@@ -65,7 +67,8 @@ namespace Crawler.Modules
 
         }
 
-        protected Dictionary<string, Regex> Regexes { get => this._regexes; }
+        protected Dictionary<string, Regex> Regexes { get; }
+
         protected WebClient WebClient
         {
             get
@@ -80,6 +83,10 @@ namespace Crawler.Modules
 
         protected CrawlerQueue Queue { get; }
         protected CrawlerQueue LocalQueue { get; }
+        protected CrawlerRegistry PageRegistry { get; }
+        protected HashSet<string> CrawledPages { get; }
+        protected Dictionary<string, RobotsParser> RobotsParsers { get; }
+        
 
         public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
 
@@ -192,8 +199,49 @@ namespace Crawler.Modules
 
         public void Crawl()
         {
-            
+            var finished = false;
+            var lastCrawl = 0;
+
+            while (!finished)
+            {
+                if (!this.LocalQueue.HasLink())
+                {
+                    // TODO Fetch from other queue
+                    finished = true;
+                    continue;
+                }
+
+                var curLink = this.LocalQueue.GetLink();
+
+                try
+                {
+                    var baseUri = this.GetUrlBase(curLink);
+
+                    if (!this.RobotsParsers.TryGetValue(baseUri, out var robotsParser))
+                    {
+                        var robotsStream = this.WebClient.OpenRead(new Uri(new Uri(baseUri), "robots.txt"));
+                        robotsParser = new RobotsParser(robotsStream);
+                    }
+
+                    var timeElapsed = DateTimeOffset.Now.ToUnixTimeSeconds() - lastCrawl;
+                    if (timeElapsed < robotsParser.CrawlDelay)
+                    {
+                        var delay = (int) (robotsParser.CrawlDelay - timeElapsed) + 1;
+                        Thread.Sleep(delay * 1000);
+                    }
+
+                    var parsedPage = this.ParsePage(curLink);
+
+                    this.PageRegistry.Links.Add(parsedPage);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+            }
         }
+
+        public CrawlerLink ParsePage(string url) { return this.ParsePage(new Uri(url)); }
 
         public void SetSeedUris(IEnumerable<string> seedUris)
         {
@@ -214,6 +262,13 @@ namespace Crawler.Modules
                     else { this.Queue.AddLink(seedUri); }
                 }
             }
+        }
+
+        protected string GetUrlBase(string url)
+        {
+            var uri = new Uri(url);
+
+            return uri.GetLeftPart(UriPartial.Authority);
         }
     }
 }

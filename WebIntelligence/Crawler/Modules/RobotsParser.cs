@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Crawler.Modules
 {
-    internal class RobotsParser
+    public class RobotsParser
     {
         private readonly Dictionary<string, Regex> _regexes;
 

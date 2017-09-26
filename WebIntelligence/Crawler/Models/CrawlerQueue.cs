@@ -16,5 +16,7 @@ namespace Crawler.Models
         public void AddLink(string link) { this._backlog.Enqueue(link); }
 
         public string GetLink() { return this._backlog.Dequeue(); }
+
+        public bool HasLink() { return this._backlog.Count > 0; }
     }
 }
