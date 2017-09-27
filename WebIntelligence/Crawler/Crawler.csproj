@@ -44,11 +44,13 @@
   <ItemGroup>
     <Compile Include="Helpers\PorterStemmer.cs" />
     <Compile Include="Helpers\StopWords.cs" />
+    <Compile Include="Helpers\Utilities.cs" />
     <Compile Include="Helpers\WebClientExtensions.cs" />
     <Compile Include="Helpers\WebUtils.cs" />
     <Compile Include="Models\CrawlerLink.cs" />
     <Compile Include="Models\CrawlerQueue.cs" />
     <Compile Include="Models\CrawlerRegistry.cs" />
+    <Compile Include="Modules\ConsoleMenu.cs" />
     <Compile Include="Modules\Crawler.cs" />
     <Compile Include="Modules\RobotsParser.cs" />
     <Compile Include="Modules\Jaccard.cs" />

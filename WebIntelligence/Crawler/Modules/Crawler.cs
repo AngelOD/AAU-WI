@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Crawler.Helpers;
@@ -81,11 +83,11 @@ namespace Crawler.Modules
             }
         }
 
-        protected CrawlerQueue Queue { get; }
-        protected CrawlerQueue LocalQueue { get; }
-        protected CrawlerRegistry PageRegistry { get; }
-        protected HashSet<string> CrawledPages { get; }
-        protected Dictionary<string, RobotsParser> RobotsParsers { get; }
+        protected CrawlerQueue Queue { get; set; }
+        protected CrawlerQueue LocalQueue { get; set; }
+        protected CrawlerRegistry PageRegistry { get; set; }
+        protected HashSet<string> CrawledPages { get; set; }
+        protected Dictionary<string, RobotsParser> RobotsParsers { get; set; }
         
 
         public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
@@ -165,7 +167,7 @@ namespace Crawler.Modules
             // Extract text from body
             Console.Write("Extracting body... ");
             var bodyMatch = this.Regexes["body"].Match(noScriptText);
-            var bodyText = "";
+            string bodyText;
 
             if (bodyMatch.Groups["contents"].Success)
             {
@@ -223,9 +225,8 @@ namespace Crawler.Modules
 
             while (!finished)
             {
-                if (!this.LocalQueue.HasLink())
+                if (!this.LocalQueue.HasLink)
                 {
-                    //CrawlerRegistry.SaveToFile("");
                     // TODO Fetch from other queue
                     finished = true;
                     continue;
@@ -235,7 +236,7 @@ namespace Crawler.Modules
 
                 try
                 {
-                    var baseUri = this.GetUrlBase(curLink);
+                    var baseUri = Utilities.GetUrlBase(curLink);
 
                     if (!this.RobotsParsers.TryGetValue(baseUri, out var robotsParser))
                     {
@@ -258,13 +259,15 @@ namespace Crawler.Modules
                     pagesCrawled++;
                     lastCrawl = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
-                    if (pagesCrawled > 5) { finished = true; }
+                    if (pagesCrawled > 50) { finished = true; }
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
                 }
             }
+
+            this.SaveCrawlerData();
         }
 
         public CrawlerLink ParsePage(string url) { return this.ParsePage(new Uri(url)); }
@@ -290,11 +293,74 @@ namespace Crawler.Modules
             }
         }
 
-        protected string GetUrlBase(string url)
+        private HashSet<string> LoadCrawledPages(string fileName)
         {
-            var uri = new Uri(url);
+            var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
+            var deserializer = new BinaryFormatter();
 
-            return uri.GetLeftPart(UriPartial.Authority);
+            var crawledPages = (HashSet<string>)deserializer.Deserialize(file);
+
+            file.Close();
+
+            return crawledPages;
+        }
+
+        private void SaveCrawledPages(string fileName)
+        {
+            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
+            var serializer = new BinaryFormatter();
+
+            serializer.Serialize(file, this.CrawledPages);
+
+            file.Close();
+        }
+
+        public bool LoadCrawlerData()
+        {
+            this.PageRegistry = CrawlerRegistry.LoadFromFile("registry.dat");
+            this.LocalQueue = CrawlerQueue.LoadFromFile("local_queue.dat");
+            this.Queue = CrawlerQueue.LoadFromFile("queue.dat");
+            this.CrawledPages = this.LoadCrawledPages("crawled_pages.dat");
+
+            return true;
+        }
+
+        public bool SaveCrawlerData()
+        {
+            this.BackupCrawlerData();
+
+            CrawlerRegistry.SaveToFile("registry.dat", this.PageRegistry);
+            CrawlerQueue.SaveToFile("local_queue.dat", this.LocalQueue);
+            CrawlerQueue.SaveToFile("queue.dat", this.Queue);
+            this.SaveCrawledPages("crawled_pages.dat");
+
+            return true;
+        }
+
+        public void BackupCrawlerData()
+        {
+            var sourcePath = Utilities.UserAppDataPath;
+            var destPath = Path.Combine(Utilities.UserAppDataPath, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            var fileNames = new[]
+                            {
+                                "registry.dat",
+                                "local_queue.dat",
+                                "queue.dat",
+                                "crawled_pages.dat"
+                            };
+
+            Directory.CreateDirectory(destPath);
+
+            foreach (var fileName in fileNames)
+            {
+                var fromFile = Path.Combine(sourcePath, fileName);
+                var toFile = Path.Combine(destPath, fileName);
+
+                if (File.Exists(fromFile))
+                {
+                    File.Copy(fromFile, toFile);
+                }
+            }
         }
     }
 }
