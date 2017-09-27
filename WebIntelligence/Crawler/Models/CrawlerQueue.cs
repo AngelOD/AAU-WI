@@ -13,6 +13,8 @@ namespace Crawler.Models
             this._backlog = new Queue<string>();
         }
 
+        public int Length => this._backlog.Count;
+
         public void AddLink(string link) { this._backlog.Enqueue(link); }
 
         public string GetLink() { return this._backlog.Dequeue(); }

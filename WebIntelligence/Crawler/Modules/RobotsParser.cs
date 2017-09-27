@@ -18,6 +18,7 @@ namespace Crawler.Modules
         /// 
         /// </summary>
         public long CrawlDelay { get; protected set; } = 1;
+        public long CrawlDelayMilliseconds => this.CrawlDelay * 1000;
 
         /// <summary>
         /// 

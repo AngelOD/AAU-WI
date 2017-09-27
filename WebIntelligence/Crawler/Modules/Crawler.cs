@@ -25,7 +25,7 @@ namespace Crawler.Modules
                             {
                                 {
                                     "links",
-                                    new Regex("<a.*?href=(['\"])(?<link>.*?)\\1.*?",
+                                    new Regex("<a.*?href=(?:['\"])?(?<link>[^'\"> ]*)(?:['\"])?.*?",
                                               RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
                                 },
                                 {
@@ -104,6 +104,19 @@ namespace Crawler.Modules
             return outputUri.AbsoluteUri;
         }
 
+        public void PrintInfo()
+        {
+            Console.WriteLine("{0} pages crawled:", this.CrawledPages.Count);
+            foreach (var page in this.CrawledPages)
+            {
+                Console.WriteLine(" - {0}", page);
+            }
+
+            Console.WriteLine();
+
+            Console.WriteLine("{0} pages left in local queue, {1} in global.", this.LocalQueue.Length, this.Queue.Length);
+        }
+
         public CrawlerLink ParsePage(Uri pageUri)
         {
             Console.Write("Downloading page... ");
@@ -150,16 +163,21 @@ namespace Crawler.Modules
             Console.WriteLine("Length: {0}", noScriptText.Length);
 
             // Extract text from body
-            Console.Write("Extracting body...");
+            Console.Write("Extracting body... ");
             var bodyMatch = this.Regexes["body"].Match(noScriptText);
+            var bodyText = "";
 
-            if (bodyMatch.Groups.Count == 0)
+            if (bodyMatch.Groups["contents"].Success)
             {
-                throw new FormatException("Empty body");
+                Console.WriteLine("Length: {0}", bodyMatch.Groups["contents"].Length);
+                bodyText = bodyMatch.Groups["contents"].Value;
+            }
+            else
+            {
+                Console.WriteLine("Not found! Using whole document instead!");
+                bodyText = noScriptText;
             }
 
-            Console.WriteLine("Length: {0}", bodyMatch.Groups["contents"].Length);
-            var bodyText = bodyMatch.Groups["contents"].Value;
 
             // Clean up the body text
             Console.Write("Cleaning up document, resulting in lengths: ");
@@ -200,12 +218,14 @@ namespace Crawler.Modules
         public void Crawl()
         {
             var finished = false;
-            var lastCrawl = 0;
+            long lastCrawl = 0;
+            var pagesCrawled = 0;
 
             while (!finished)
             {
                 if (!this.LocalQueue.HasLink())
                 {
+                    //CrawlerRegistry.SaveToFile("");
                     // TODO Fetch from other queue
                     finished = true;
                     continue;
@@ -223,16 +243,22 @@ namespace Crawler.Modules
                         robotsParser = new RobotsParser(robotsStream);
                     }
 
-                    var timeElapsed = DateTimeOffset.Now.ToUnixTimeSeconds() - lastCrawl;
-                    if (timeElapsed < robotsParser.CrawlDelay)
+                    var timeElapsed = DateTimeOffset.Now.ToUnixTimeMilliseconds() - lastCrawl;
+                    if (timeElapsed < robotsParser.CrawlDelayMilliseconds)
                     {
-                        var delay = (int) (robotsParser.CrawlDelay - timeElapsed) + 1;
-                        Thread.Sleep(delay * 1000);
+                        var delay = (int) (robotsParser.CrawlDelayMilliseconds - timeElapsed) + 100;
+                        Console.WriteLine("Sleeping for {0} ms.", delay);
+                        Thread.Sleep(delay);
                     }
 
                     var parsedPage = this.ParsePage(curLink);
 
                     this.PageRegistry.Links.Add(parsedPage);
+                    this.CrawledPages.Add(curLink);
+                    pagesCrawled++;
+                    lastCrawl = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+                    if (pagesCrawled > 5) { finished = true; }
                 }
                 catch (Exception e)
                 {
