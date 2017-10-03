@@ -15,6 +15,8 @@ namespace Crawler.Modules
         protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
 
         private WebClient _webClient;
+        private long _lastSaved = 0;
+        private int _crawlCount = 1000;
 
         public Crawler()
         {
@@ -88,6 +90,15 @@ namespace Crawler.Modules
         protected CrawlerRegistry PageRegistry { get; set; }
         protected HashSet<string> CrawledPages { get; set; }
         protected Dictionary<string, RobotsParser> RobotsParsers { get; set; }
+
+        public int CrawlCount
+        {
+            get => this._crawlCount;
+            set
+            {
+                if (value > 0) { this._crawlCount = value; }
+            }
+        }
         
 
         public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
@@ -109,10 +120,6 @@ namespace Crawler.Modules
         public void PrintInfo()
         {
             Console.WriteLine("{0} pages crawled:", this.CrawledPages.Count);
-            foreach (var page in this.CrawledPages)
-            {
-                Console.WriteLine(" - {0}", page);
-            }
 
             Console.WriteLine();
 
@@ -131,6 +138,7 @@ namespace Crawler.Modules
             // Extract links
             Console.Write("Extracting links... ");
             var matches = this.Regexes["links"].Matches(pageSource);
+            var links = new List<string>();
             var localCount = 0;
             var externCount = 0;
 
@@ -138,8 +146,18 @@ namespace Crawler.Modules
             {
                 try
                 {
-                    var link = match.Groups["link"];
-                    var newUri = this.NormalizeUri(baseAddress, link.Value);
+                    var link = match.Groups["link"].Value;
+
+                    // Check for presence of an anchor tag
+                    var pos = link.IndexOf('#');
+
+                    if (pos > -1) { link = link.Substring(0, pos); }
+
+                    if (link.Length == 0) { continue; }
+
+                    var newUri = this.NormalizeUri(baseAddress, link);
+
+                    links.Add(newUri);
 
                     if (baseUri.IsBaseOf(new Uri(newUri)))
                     {
@@ -155,6 +173,7 @@ namespace Crawler.Modules
                 catch (ArgumentException)
                 {
                     // Ignore exception
+                    Console.WriteLine("Ignoring link: {0}", match.Groups["link"].Value);
                 }
             }
 
@@ -208,7 +227,7 @@ namespace Crawler.Modules
             bodyText = this.Regexes["multiSpaces"].Replace(bodyText, " ");
             Console.WriteLine("New length: {0}", bodyText.Length);
 
-            return new CrawlerLink(pageUri.AbsoluteUri, bodyText);
+            return new CrawlerLink(pageUri.AbsoluteUri, bodyText, links);
         }
 
         public void Crawl(IEnumerable<string> seedUris)
@@ -221,7 +240,8 @@ namespace Crawler.Modules
         {
             var finished = false;
             long lastCrawl = 0;
-            var pagesCrawled = 0;
+            var pagesCrawledTotal = this.CrawledPages.Count;
+            var pagesCrawledLocal = 0;
 
             while (!finished)
             {
@@ -236,6 +256,8 @@ namespace Crawler.Modules
 
                 try
                 {
+                    if (this.CrawledPages.Contains(curLink)) { continue; }
+
                     var baseUri = Utilities.GetUrlBase(curLink);
 
                     if (!this.RobotsParsers.TryGetValue(baseUri, out var robotsParser))
@@ -252,14 +274,19 @@ namespace Crawler.Modules
                         Thread.Sleep(delay);
                     }
 
+                    Console.WriteLine("Crawling page #{0} (Local: #{1}/{2})", pagesCrawledTotal + 1, pagesCrawledLocal + 1, this.CrawlCount);
                     var parsedPage = this.ParsePage(curLink);
 
                     this.PageRegistry.Links.Add(parsedPage);
                     this.CrawledPages.Add(curLink);
-                    pagesCrawled++;
+
+                    pagesCrawledTotal++;
+                    pagesCrawledLocal++;
+
                     lastCrawl = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
-                    if (pagesCrawled > 50) { finished = true; }
+                    if (pagesCrawledLocal % 10 == 0) { this.SaveCrawlerData(); }
+                    if (pagesCrawledLocal >= this.CrawlCount) { finished = true; }
                 }
                 catch (Exception e)
                 {
@@ -327,12 +354,20 @@ namespace Crawler.Modules
 
         public bool SaveCrawlerData()
         {
-            this.BackupCrawlerData();
+            var curTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+
+            if ((curTime - this._lastSaved) > 900)
+            {
+                this.BackupCrawlerData();
+                this._lastSaved = curTime;
+            }
 
             CrawlerRegistry.SaveToFile("registry.dat", this.PageRegistry);
             CrawlerQueue.SaveToFile("local_queue.dat", this.LocalQueue);
             CrawlerQueue.SaveToFile("queue.dat", this.Queue);
             this.SaveCrawledPages("crawled_pages.dat");
+
+            GC.Collect();
 
             return true;
         }

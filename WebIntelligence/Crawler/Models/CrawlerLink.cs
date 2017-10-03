@@ -12,10 +12,14 @@ namespace Crawler.Models
         public LinkedList<ulong> ShingleHashes { get; protected set; }
         public HashSet<string> Tokens { get; protected set; }
         public Dictionary<string, int> Keywords { get; protected set; }
+        public HashSet<string> Links { get; protected set; }
 
-        public CrawlerLink(string address, string contents)
+        public CrawlerLink(string address, string contents, IEnumerable<string> links)
         {
             this.Address = address;
+
+            // Store links
+            this.Links = new HashSet<string>(links);
 
             // Tokenize
             var tokens = new List<string>(contents.Split(' '));
