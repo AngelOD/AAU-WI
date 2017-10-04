@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Crawler.Models;
 
 namespace Crawler.Modules
 {
@@ -33,6 +35,7 @@ namespace Crawler.Modules
             Console.WriteLine("(C) Crawl (Count = {0})", this._pageCrawlCount);
             Console.WriteLine("(I) Increase crawl count by 100");
             Console.WriteLine("(D) Decrease crawl count by 25");
+            Console.WriteLine("(T) Test element");
             Console.WriteLine();
             Console.WriteLine("(Q) Quit");
         }
@@ -71,6 +74,9 @@ namespace Crawler.Modules
                 case ConsoleKey.R:
                     this._crawler.PrintInfo();
                     break;
+                case ConsoleKey.T:
+                    RunTest();
+                    break;
                 case ConsoleKey.Z:
                     Console.WriteLine("Seed set!");
                     this._crawler.SetSeedUris(new []{ @"http://www.freeos.com/guides/lsst/" });
@@ -78,6 +84,18 @@ namespace Crawler.Modules
             }
 
             return false;
+        }
+
+        private static void RunTest()
+        {
+            var bq = new BooleanQuery();
+            var query = "general or ordinary and test not batteries";
+
+            var result = bq.ParseQuery(query);
+            result.Output();
+
+            Console.WriteLine("Press enter to continue");
+            Console.ReadLine();
         }
     }
 }

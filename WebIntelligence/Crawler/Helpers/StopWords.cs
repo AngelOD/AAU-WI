@@ -1,12 +1,16 @@
 ﻿#region Using Directives
+using System;
 using System.Collections.Generic;
+using System.Linq;
 #endregion
 
 namespace Crawler.Helpers
 {
     public static class StopWords
     {
+        private static List<string> _booleanWords;
         private static List<string> _stopWordsList;
+        private static List<string> _booleanStopWordsList;
 
         public static List<string> StopWordsList => _stopWordsList ?? (_stopWordsList = new List<string>
                                                                                         {
@@ -509,5 +513,19 @@ namespace Crawler.Helpers
                                                                                             "zero"
             #endregion
         });
+
+        public static List<string> BooleanWords => _booleanWords ?? (_booleanWords = new List<string>
+                                                                                     {
+                                                                                         "and",
+                                                                                         "not",
+                                                                                         "or"
+                                                                                     });
+
+        public static List<string> BooleanStopWordsList => _booleanStopWordsList ??
+                                                           (_booleanStopWordsList =
+                                                                StopWordsList.FindAll(word =>
+                                                                                          !BooleanWords
+                                                                                              .Contains(word.ToLower()))
+                                                           );
     }
 }

@@ -47,6 +47,7 @@
     <Compile Include="Helpers\Utilities.cs" />
     <Compile Include="Helpers\WebClientExtensions.cs" />
     <Compile Include="Helpers\WebUtils.cs" />
+    <Compile Include="Models\BooleanQuery.cs" />
     <Compile Include="Models\CrawlerLink.cs" />
     <Compile Include="Models\CrawlerQueue.cs" />
     <Compile Include="Models\CrawlerRegistry.cs" />

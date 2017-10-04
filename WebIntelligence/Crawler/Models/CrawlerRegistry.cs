@@ -11,7 +11,7 @@ namespace Crawler.Models
     [Serializable]
     public class CrawlerRegistry
     {
-        private Dictionary<string, List<IndexEntry>> _index;
+        private SortedDictionary<string, List<IndexEntry>> _index;
         private bool _isDirty;
 
         public CrawlerRegistry()
@@ -23,7 +23,7 @@ namespace Crawler.Models
         protected int LastId { get; set; }
         protected Dictionary<int, CrawlerLink> Links { get; set; }
 
-        public Dictionary<string, List<IndexEntry>> Index
+        public SortedDictionary<string, List<IndexEntry>> Index
         {
             get
             {
@@ -37,7 +37,7 @@ namespace Crawler.Models
 
         protected void BuildIndex()
         {
-            var index = new Dictionary<string, List<IndexEntry>>();
+            var index = new SortedDictionary<string, List<IndexEntry>>();
 
             foreach (var link in this.Links)
             {
