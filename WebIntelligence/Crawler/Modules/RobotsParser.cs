@@ -198,14 +198,9 @@ namespace Crawler.Modules
 
                 var cdTest = this._regexes["crawlDelay"].Match(line);
 
-                if (cdTest.Success)
+                if (cdTest.Success && long.TryParse(cdTest.Groups[1].Value, out long crawlDelay))
                 {
-                    if (long.TryParse(cdTest.Groups[1].Value, out long crawlDelay))
-                    {
-                        this.CrawlDelay = crawlDelay;
-                    }
-
-                    continue;
+                    this.CrawlDelay = crawlDelay;
                 }
             }
 

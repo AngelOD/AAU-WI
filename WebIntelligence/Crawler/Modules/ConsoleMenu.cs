@@ -28,6 +28,7 @@ namespace Crawler.Modules
             Console.WriteLine();
             Console.WriteLine("(L) Load crawler data");
             Console.WriteLine("(R) Print crawler info");
+            Console.WriteLine("(G) Generate and output index");
             Console.WriteLine("(Z) Set default seed");
             Console.WriteLine("(C) Crawl (Count = {0})", this._pageCrawlCount);
             Console.WriteLine("(I) Increase crawl count by 100");
@@ -51,6 +52,12 @@ namespace Crawler.Modules
                 case ConsoleKey.D:
                     this._pageCrawlCount -= 25;
                     if (this._pageCrawlCount < 5) { this._pageCrawlCount = 5; }
+                    break;
+                case ConsoleKey.G:
+                    this._crawler.OutputIndex();
+                    Console.WriteLine();
+                    Console.WriteLine("Press enter to continue...");
+                    Console.ReadLine();
                     break;
                 case ConsoleKey.I:
                     this._pageCrawlCount += 100;

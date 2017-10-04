@@ -1,4 +1,5 @@
-﻿using System;
+﻿#region Using Directives
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -7,16 +8,17 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Crawler.Helpers;
 using Crawler.Models;
+#endregion
 
 namespace Crawler.Modules
 {
     public class Crawler
     {
         protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
+        private int _crawlCount = 1000;
+        private long _lastSaved;
 
         private WebClient _webClient;
-        private long _lastSaved = 0;
-        private int _crawlCount = 1000;
 
         public Crawler()
         {
@@ -26,49 +28,48 @@ namespace Crawler.Modules
             this.PageRegistry = new CrawlerRegistry();
             this.RobotsParsers = new Dictionary<string, RobotsParser>();
             this.Regexes = new Dictionary<string, Regex>
-                            {
-                                {
-                                    "links",
-                                    new Regex("<a.*?href=(?:['\"])?(?<link>[^'\"> ]*)(?:['\"])?.*?",
-                                              RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
-                                },
-                                {
-                                    "body",
-                                    new Regex("<body(?:[ ][^>]*)?>(?<contents>.*?)</body>",
-                                              RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
-                                },
-                                {
-                                    "scripts",
-                                    new Regex("<script[^>]*>.*?</script>",
-                                              RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
-                                },
-                                {
-                                    "styles",
-                                    new Regex("<style[^>]*>.*?</style>",
-                                    RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline)
-                                },
-                                {
-                                    "tags",
-                                    new Regex("<[^>]+>",
-                                    RegexOptions.Compiled | RegexOptions.Singleline)
-                                },
-                                {
-                                    "lineBreaks",
-                                    new Regex(@"[\u000A\u000B\u000C\u000D\u2028\u2029\u0085]+",
-                                    RegexOptions.Compiled)
-                                },
-                                {
-                                    "multiSpaces",
-                                    new Regex("[ ]{2,}",
-                                    RegexOptions.Compiled)
-                                },
-                                {
-                                    "nonLetters",
-                                    new Regex("\\P{L}",
-                                    RegexOptions.Compiled)
-                                }
-                            };
-
+                           {
+                               {
+                                   "links",
+                                   new Regex("<a.*?href=(?:['\"])?(?<link>[^'\"> ]*)(?:['\"])?.*?",
+                                             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
+                               },
+                               {
+                                   "body",
+                                   new Regex("<body(?:[ ][^>]*)?>(?<contents>.*?)</body>",
+                                             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
+                               },
+                               {
+                                   "scripts",
+                                   new Regex("<script[^>]*>.*?</script>",
+                                             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline)
+                               },
+                               {
+                                   "styles",
+                                   new Regex("<style[^>]*>.*?</style>",
+                                             RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline)
+                               },
+                               {
+                                   "tags",
+                                   new Regex("<[^>]+>",
+                                             RegexOptions.Compiled | RegexOptions.Singleline)
+                               },
+                               {
+                                   "lineBreaks",
+                                   new Regex(@"[\u000A\u000B\u000C\u000D\u2028\u2029\u0085]+",
+                                             RegexOptions.Compiled)
+                               },
+                               {
+                                   "multiSpaces",
+                                   new Regex("[ ]{2,}",
+                                             RegexOptions.Compiled)
+                               },
+                               {
+                                   "nonLetters",
+                                   new Regex("\\P{L}",
+                                             RegexOptions.Compiled)
+                               }
+                           };
         }
 
         protected Dictionary<string, Regex> Regexes { get; }
@@ -99,14 +100,31 @@ namespace Crawler.Modules
                 if (value > 0) { this._crawlCount = value; }
             }
         }
-        
 
-        public string NormalizeUri(string baseUri, string checkUri) { return this.NormalizeUri(new Uri(baseUri), checkUri); }
+        public void OutputIndex()
+        {
+            var index = this.PageRegistry.Index;
+
+            foreach (var entry in index)
+            {
+                Console.Write("{0} -> ", entry.Key);
+                foreach (var value in entry.Value) { Console.Write("{0}:{1} ", value.LinkId, value.Frequency); }
+                Console.WriteLine();
+            }
+        }
+
+
+        public string NormalizeUri(string baseUri, string checkUri)
+        {
+            return this.NormalizeUri(new Uri(baseUri), checkUri);
+        }
 
         public string NormalizeUri(Uri baseUri, string checkUri)
         {
             // Check if it's a relative Uri
-            var outputUri = Uri.IsWellFormedUriString(checkUri, UriKind.Absolute) ? new Uri(checkUri) : new Uri(baseUri, checkUri);
+            var outputUri = Uri.IsWellFormedUriString(checkUri, UriKind.Absolute)
+                                ? new Uri(checkUri)
+                                : new Uri(baseUri, checkUri);
 
             // Check scheme
             if (!(outputUri.Scheme.Equals("http") || outputUri.Scheme.Equals("https")))
@@ -123,7 +141,8 @@ namespace Crawler.Modules
 
             Console.WriteLine();
 
-            Console.WriteLine("{0} pages left in local queue, {1} in global.", this.LocalQueue.Length, this.Queue.Length);
+            Console.WriteLine("{0} pages left in local queue, {1} in global.", this.LocalQueue.Length,
+                              this.Queue.Length);
         }
 
         public CrawlerLink ParsePage(Uri pageUri)
@@ -253,6 +272,7 @@ namespace Crawler.Modules
                 }
 
                 var curLink = this.LocalQueue.GetLink();
+                var curUri = new Uri(curLink);
 
                 try
                 {
@@ -274,10 +294,17 @@ namespace Crawler.Modules
                         Thread.Sleep(delay);
                     }
 
-                    Console.WriteLine("Crawling page #{0} (Local: #{1}/{2})", pagesCrawledTotal + 1, pagesCrawledLocal + 1, this.CrawlCount);
+                    if (!robotsParser.IsAllowed(curUri.PathAndQuery))
+                    {
+                        Console.WriteLine("Ignoring page due to robots.txt limitation: {0}", curLink);
+                        continue;
+                    }
+
+                    Console.WriteLine("Crawling page #{0} (Local: #{1}/{2})", pagesCrawledTotal + 1,
+                                      pagesCrawledLocal + 1, this.CrawlCount);
                     var parsedPage = this.ParsePage(curLink);
 
-                    this.PageRegistry.Links.Add(parsedPage);
+                    this.PageRegistry.AddLink(parsedPage);
                     this.CrawledPages.Add(curLink);
 
                     pagesCrawledTotal++;
@@ -288,10 +315,7 @@ namespace Crawler.Modules
                     if (pagesCrawledLocal % 10 == 0) { this.SaveCrawlerData(); }
                     if (pagesCrawledLocal >= this.CrawlCount) { finished = true; }
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                }
+                catch (Exception e) { Console.WriteLine(e); }
             }
 
             this.SaveCrawlerData();
@@ -325,7 +349,7 @@ namespace Crawler.Modules
             var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
             var deserializer = new BinaryFormatter();
 
-            var crawledPages = (HashSet<string>)deserializer.Deserialize(file);
+            var crawledPages = (HashSet<string>) deserializer.Deserialize(file);
 
             file.Close();
 
@@ -391,10 +415,7 @@ namespace Crawler.Modules
                 var fromFile = Path.Combine(sourcePath, fileName);
                 var toFile = Path.Combine(destPath, fileName);
 
-                if (File.Exists(fromFile))
-                {
-                    File.Copy(fromFile, toFile);
-                }
+                if (File.Exists(fromFile)) { File.Copy(fromFile, toFile); }
             }
         }
     }

@@ -1,18 +1,16 @@
-﻿using System;
+﻿#region Using Directives
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Crawler.Helpers;
+#endregion
 
 namespace Crawler.Models
 {
     [Serializable]
     public class CrawlerLink
     {
-        public string Address { get; protected set; }
-        public LinkedList<ulong> ShingleHashes { get; protected set; }
-        public HashSet<string> Tokens { get; protected set; }
-        public Dictionary<string, int> Keywords { get; protected set; }
-        public HashSet<string> Links { get; protected set; }
+        private int _uniqueId;
 
         public CrawlerLink(string address, string contents, IEnumerable<string> links)
         {
@@ -53,5 +51,20 @@ namespace Crawler.Models
 
             this.Keywords = keywords;
         }
+
+        public int UniqueId
+        {
+            get => this._uniqueId;
+            set
+            {
+                if (this._uniqueId == 0) { this._uniqueId = value; }
+            }
+        }
+
+        public string Address { get; protected set; }
+        public LinkedList<ulong> ShingleHashes { get; protected set; }
+        public HashSet<string> Tokens { get; protected set; }
+        public Dictionary<string, int> Keywords { get; protected set; }
+        public HashSet<string> Links { get; protected set; }
     }
 }
