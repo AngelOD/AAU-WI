@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text.RegularExpressions;
@@ -15,6 +16,8 @@ namespace Crawler.Modules
     public class Crawler
     {
         protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
+        protected const string FileIdent = "BSCCP";
+        protected const int FileVersion = 1;
         private int _crawlCount = 1000;
         private long _lastSaved;
 
@@ -66,7 +69,7 @@ namespace Crawler.Modules
                                },
                                {
                                    "nonLetters",
-                                   new Regex("\\P{L}",
+                                   new Regex("[^A-Za-z]",
                                              RegexOptions.Compiled)
                                }
                            };
@@ -104,15 +107,53 @@ namespace Crawler.Modules
         public void OutputIndex()
         {
             var index = this.PageRegistry.Index;
+            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, "index.txt"));
+            var sw = new StreamWriter(file);
 
             foreach (var entry in index)
             {
                 Console.Write("{0} -> ", entry.Key);
-                foreach (var value in entry.Value) { Console.Write("{0}:{1} ", value.LinkId, value.Frequency); }
+                sw.Write("{0} -> ", entry.Key);
+
+                foreach (var value in entry.Value)
+                {
+                    Console.Write("{0}:{1} ", value.LinkId, value.Frequency);
+                    sw.Write("{0}:{1} ", value.LinkId, value.Frequency);
+                }
+
                 Console.WriteLine();
+                sw.WriteLine();
             }
+
+            sw.Close();
         }
 
+        public void OutputPage(int pageNum)
+        {
+            this.PageRegistry[pageNum].Output();
+        }
+
+        public void ExecuteBooleanQuery(string query)
+        {
+            var bq = new BooleanQuery();
+            var result = bq.ParseQuery(query);
+
+            result.Output();
+
+            Console.WriteLine("Press enter to continue");
+            Console.ReadLine();
+
+            var results = result.Execute(this.PageRegistry);
+
+            foreach (var entry in results)
+            {
+                Console.Write("{0}, ", entry.LinkId);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Press enter to continue");
+            Console.ReadLine();
+        }
 
         public string NormalizeUri(string baseUri, string checkUri)
         {
@@ -138,11 +179,35 @@ namespace Crawler.Modules
         public void PrintInfo()
         {
             Console.WriteLine("{0} pages crawled:", this.CrawledPages.Count);
-
             Console.WriteLine();
-
             Console.WriteLine("{0} pages left in local queue, {1} in global.", this.LocalQueue.Length,
                               this.Queue.Length);
+        }
+
+        public void PrintDomainInfo()
+        {
+            var domains = new Dictionary<string, int>();
+
+            foreach (var crawledPage in this.CrawledPages)
+            {
+                var baseUrl = Utilities.GetUrlBase(crawledPage);
+
+                if (domains.ContainsKey(baseUrl)) { domains[baseUrl]++; }
+                else { domains[baseUrl] = 1; }
+            }
+
+            var sortedDomains =
+                from d in domains
+                orderby d.Key
+                select d;
+
+            foreach (var domain in sortedDomains)
+            {
+                Console.WriteLine("{0} [{1}]", domain.Key, domain.Value);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("A total of {0} pages spanning {1} domains.", this.CrawledPages.Count, domains.Count);
         }
 
         public CrawlerLink ParsePage(Uri pageUri)
@@ -153,6 +218,12 @@ namespace Crawler.Modules
             var baseAddress = pageUri.GetLeftPart(UriPartial.Path);
             var baseUri = new Uri(baseAddress);
             Console.WriteLine("Length: {0}", pageSource.Length);
+
+            if (pageSource.Length == 0)
+            {
+                Console.WriteLine("Empty page. Skipping!");
+                return null;
+            }
 
             // Extract links
             Console.Write("Extracting links... ");
@@ -259,19 +330,39 @@ namespace Crawler.Modules
         {
             var finished = false;
             long lastCrawl = 0;
+            var curLink = "";
             var pagesCrawledTotal = this.CrawledPages.Count;
             var pagesCrawledLocal = 0;
+            var pagesSinceMainQueueFetch = 0;
+
+            if (this.LocalQueue.Length > 100)
+            {
+                Console.Write("Limiting local queue to 100 entries... ");
+                var links = this.LocalQueue.GetOverflow(100);
+
+                while (links.Count > 0)
+                {
+                    this.Queue.AddLink(links.Dequeue());
+                }
+
+                Console.WriteLine("Done!");
+            }
 
             while (!finished)
             {
                 if (!this.LocalQueue.HasLink)
                 {
-                    // TODO Fetch from other queue
-                    finished = true;
+                    Console.WriteLine("No more links in local queue. Need to fetch new ones!");
+                    if (this.Queue.HasLink)
+                    {
+                        this.LocalQueue.ReplaceQueue(this.Queue.GetLinkCollection(curLink));
+                        pagesSinceMainQueueFetch = 0;
+                    }
+                    else { finished = true; }
                     continue;
                 }
 
-                var curLink = this.LocalQueue.GetLink();
+                curLink = this.LocalQueue.GetLink();
                 var curUri = new Uri(curLink);
 
                 try
@@ -300,20 +391,37 @@ namespace Crawler.Modules
                         continue;
                     }
 
-                    Console.WriteLine("Crawling page #{0} (Local: #{1}/{2})", pagesCrawledTotal + 1,
-                                      pagesCrawledLocal + 1, this.CrawlCount);
+                    Console.WriteLine("Crawling page #{0} (Local: #{1}/{2}) (SLF: {3})", pagesCrawledTotal + 1,
+                                      pagesCrawledLocal + 1, this.CrawlCount, pagesSinceMainQueueFetch + 1);
+                    Console.WriteLine("[URL] {0}", curLink);
                     var parsedPage = this.ParsePage(curLink);
+
+                    if (parsedPage == null) { continue; }
 
                     this.PageRegistry.AddLink(parsedPage);
                     this.CrawledPages.Add(curLink);
 
                     pagesCrawledTotal++;
                     pagesCrawledLocal++;
+                    pagesSinceMainQueueFetch++;
 
                     lastCrawl = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
                     if (pagesCrawledLocal % 10 == 0) { this.SaveCrawlerData(); }
                     if (pagesCrawledLocal >= this.CrawlCount) { finished = true; }
+
+                    if (pagesSinceMainQueueFetch > 100)
+                    {
+                        Console.Write("Clearing local queue to give other domains a shot... ");
+                        var links = this.LocalQueue.GetOverflow(0);
+
+                        while (links.Count > 0)
+                        {
+                            this.Queue.AddLink(links.Dequeue());
+                        }
+
+                        Console.WriteLine("Done!");
+                    }
                 }
                 catch (Exception e) { Console.WriteLine(e); }
             }
@@ -347,11 +455,24 @@ namespace Crawler.Modules
         private HashSet<string> LoadCrawledPages(string fileName)
         {
             var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var deserializer = new BinaryFormatter();
+            var br = new BinaryReader(file);
 
-            var crawledPages = (HashSet<string>) deserializer.Deserialize(file);
+            // TODO Make this better along the same lines as SaveCrawledPages
+            // Header
+            var ident = br.ReadString();
+            var ver = br.ReadInt32();
 
-            file.Close();
+            if (!ident.Equals(FileIdent) || ver != FileVersion)
+            {
+                throw new FileLoadException("Incorrect format!");
+            }
+
+            var pageCount = br.ReadInt32();
+            var crawledPages = new HashSet<string>();
+
+            for (var i = 0; i < pageCount; i++) { crawledPages.Add(br.ReadString()); }
+
+            br.Close();
 
             return crawledPages;
         }
@@ -359,11 +480,21 @@ namespace Crawler.Modules
         private void SaveCrawledPages(string fileName)
         {
             var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var serializer = new BinaryFormatter();
+            var bw = new BinaryWriter(file);
 
-            serializer.Serialize(file, this.CrawledPages);
+            // TODO Make this better with some generic function somewhere
+            // Header
+            bw.Write(FileIdent);
+            bw.Write(FileVersion);
 
-            file.Close();
+            // Entries
+            bw.Write(this.CrawledPages.Count);
+            foreach (var crawledPage in this.CrawledPages)
+            {
+                bw.Write(crawledPage);
+            }
+
+            bw.Close();
         }
 
         public bool LoadCrawlerData()
@@ -380,7 +511,7 @@ namespace Crawler.Modules
         {
             var curTime = DateTimeOffset.Now.ToUnixTimeSeconds();
 
-            if ((curTime - this._lastSaved) > 900)
+            if ((curTime - this._lastSaved) > 300)
             {
                 this.BackupCrawlerData();
                 this._lastSaved = curTime;

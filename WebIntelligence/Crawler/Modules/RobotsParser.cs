@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Crawler.Modules
@@ -135,12 +136,15 @@ namespace Crawler.Modules
         /// <returns></returns>
         public bool IsAllowed(string path)
         {
+            return this.DisallowedList.All(entry => !Regex.IsMatch(path, entry));
+        }
+
+        public void PrintRules()
+        {
             foreach (var entry in this.DisallowedList)
             {
-                if (Regex.IsMatch(path, entry)) { return false; }
+                Console.WriteLine("Disallowed: {0}", entry);
             }
-
-            return true;
         }
 
         /// <summary>
@@ -157,21 +161,16 @@ namespace Crawler.Modules
             {
                 line = line.Trim();
 
-                if (string.IsNullOrEmpty(line))
-                {
-                    if (doRegister)
-                    {
-                        // We've already parsed rules pertaining to us, so break out of the loop here
-                        break;
-                    }
-
-                    continue;
-                }
-
                 var uaTest = this._regexes["userAgent"].Match(line);
 
                 if (uaTest.Success)
                 {
+                    if (doRegister)
+                    {
+                        // New entry starting here, so just ignore and proceed
+                        break;
+                    }
+
                     var agent = uaTest.Groups[1].Value.Trim();
 
                     if (agent.Equals("*") || agent.Equals("BlazingskiesCrawler"))

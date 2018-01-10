@@ -31,10 +31,12 @@ namespace Crawler.Modules
             Console.WriteLine("(L) Load crawler data");
             Console.WriteLine("(R) Print crawler info");
             Console.WriteLine("(G) Generate and output index");
+            Console.WriteLine("(S) Set seed");
             Console.WriteLine("(Z) Set default seed");
             Console.WriteLine("(C) Crawl (Count = {0})", this._pageCrawlCount);
             Console.WriteLine("(I) Increase crawl count by 100");
             Console.WriteLine("(D) Decrease crawl count by 25");
+            Console.WriteLine("(V) View page");
             Console.WriteLine("(T) Test element");
             Console.WriteLine();
             Console.WriteLine("(Q) Quit");
@@ -64,7 +66,7 @@ namespace Crawler.Modules
                     break;
                 case ConsoleKey.I:
                     this._pageCrawlCount += 100;
-                    if (this._pageCrawlCount > 1000) { this._pageCrawlCount = 1000; }
+                    if (this._pageCrawlCount > 10000) { this._pageCrawlCount = 10000; }
                     break;
                 case ConsoleKey.L:
                     Console.WriteLine("Loading data...");
@@ -73,29 +75,44 @@ namespace Crawler.Modules
                     return true;
                 case ConsoleKey.R:
                     this._crawler.PrintInfo();
+                    Console.WriteLine();
+                    Console.WriteLine("Press enter to continue...");
+                    Console.ReadLine();
+                    this._crawler.PrintDomainInfo();
+                    Console.WriteLine();
+                    Console.WriteLine("Press enter to continue...");
+                    Console.ReadLine();
+                    Console.Clear();
+                    break;
+                case ConsoleKey.S:
+                    Console.WriteLine("Enter seed URL:");
+                    var newSeed = Console.ReadLine();
+                    this._crawler.SetSeedUris(new []{ newSeed });
+                    Console.WriteLine("Seed set!");
                     break;
                 case ConsoleKey.T:
-                    RunTest();
+                    this._crawler.ExecuteBooleanQuery("general or impact and test not batteries");
+                    break;
+                case ConsoleKey.V:
+                    Console.Write("Enter page number: ");
+
+                    if (int.TryParse(Console.ReadLine(), out var pageNum))
+                    {
+                        this._crawler.OutputPage(pageNum);
+                        Console.WriteLine();
+                        Console.WriteLine("Press enter to continue...");
+                        Console.ReadLine();
+                        Console.Clear();
+                    }
+
                     break;
                 case ConsoleKey.Z:
                     Console.WriteLine("Seed set!");
-                    this._crawler.SetSeedUris(new []{ @"http://www.freeos.com/guides/lsst/" });
+                    this._crawler.SetSeedUris(new []{ @"https://www.indigoag.com" });
                     break;
             }
 
             return false;
-        }
-
-        private static void RunTest()
-        {
-            var bq = new BooleanQuery();
-            var query = "general or ordinary and test not batteries";
-
-            var result = bq.ParseQuery(query);
-            result.Output();
-
-            Console.WriteLine("Press enter to continue");
-            Console.ReadLine();
         }
     }
 }

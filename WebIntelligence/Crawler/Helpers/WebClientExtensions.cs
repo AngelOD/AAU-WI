@@ -10,7 +10,8 @@ namespace Crawler.Helpers
         {
             var rawData = webClient.DownloadData(uri);
             var encoding = WebUtils.GetEncodingFrom(webClient.ResponseHeaders, Encoding.UTF8);
-            return encoding.GetString(rawData);
+
+            return WebUtils.ContentType != WebUtils.ContentTypes.Other ? encoding.GetString(rawData) : "";
         }
     }
 }

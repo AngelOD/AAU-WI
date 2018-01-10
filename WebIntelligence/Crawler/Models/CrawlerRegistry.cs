@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using Crawler.Helpers;
 #endregion
@@ -11,6 +12,8 @@ namespace Crawler.Models
     [Serializable]
     public class CrawlerRegistry
     {
+        protected const string FileIdent = "BSCCR";
+        protected const int FileVersion = 1;
         private SortedDictionary<string, List<IndexEntry>> _index;
         private bool _isDirty;
 
@@ -37,7 +40,7 @@ namespace Crawler.Models
 
         protected void BuildIndex()
         {
-            var index = new SortedDictionary<string, List<IndexEntry>>();
+            var index = new SortedDictionary<string, List<IndexEntry>>(StringComparer.InvariantCulture);
 
             foreach (var link in this.Links)
             {
@@ -59,6 +62,29 @@ namespace Crawler.Models
 
             this._index = index;
             this._isDirty = false;
+        }
+
+        public HashSet<IndexEntry> GetIndexEntries(string key)
+        {
+            if (this.Index.ContainsKey(key.ToLowerInvariant()))
+            {
+                return new HashSet<IndexEntry>(this.Index[key.ToLowerInvariant()]);
+            }
+
+            return new HashSet<IndexEntry>();
+        }
+
+        /**
+         * 
+         */
+        public void CleanRegistry()
+        {
+            foreach (var crawlerLink in this.Links)
+            {
+                crawlerLink.Value.CleanTokens();
+            }
+
+            this._isDirty = true;
         }
 
         public void AddLink(CrawlerLink link)
@@ -86,21 +112,52 @@ namespace Crawler.Models
         public static void SaveToFile(string fileName, CrawlerRegistry registry)
         {
             var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var serializer = new BinaryFormatter();
+            var bw = new BinaryWriter(file);
 
-            serializer.Serialize(file, registry);
+            // TODO Make this betterer!
+            // Header
+            bw.Write(FileIdent);
+            bw.Write(FileVersion);
 
-            file.Close();
+            // Entries
+            bw.Write(registry.Links.Count);
+            foreach (var registryLink in registry.Links)
+            {
+                bw.Write(registryLink.Key);
+                registryLink.Value.SaveTo(bw);
+            }
+
+            bw.Close();
         }
 
         public static CrawlerRegistry LoadFromFile(string fileName)
         {
             var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var deserializer = new BinaryFormatter();
+            var br = new BinaryReader(file);
+            var registry = new CrawlerRegistry();
 
-            var registry = (CrawlerRegistry) deserializer.Deserialize(file);
+            // TODO Make this betterer too!
+            // Header
+            var ident = br.ReadString();
+            var ver = br.ReadInt32();
 
-            file.Close();
+            if (!ident.Equals(FileIdent) || ver != FileVersion)
+            {
+                throw new FileLoadException("Incorrect file format!");
+            }
+
+            var entryCount = br.ReadInt32();
+            for (var i = 0; i < entryCount; i++)
+            {
+                var key = br.ReadInt32();
+                var link = new CrawlerLink(br);
+
+                registry.Links.Add(key, link);
+            }
+
+            registry._isDirty = true;
+
+            br.Close();
 
             return registry;
         }

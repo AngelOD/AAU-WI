@@ -161,6 +161,57 @@ namespace Crawler.Models
                 this.Output(0);
             }
 
+            public HashSet<CrawlerRegistry.IndexEntry> Execute(CrawlerRegistry registry)
+            {
+                var removals = new HashSet<CrawlerRegistry.IndexEntry>();
+                var entries = this.Execute(registry, removals);
+
+                Console.WriteLine("[TopLevel] {0} entries, {1} removals.", entries.Count, removals.Count);
+
+                // TODO Is this even necessary?
+                entries.ExceptWith(removals);
+
+                return entries;
+            }
+
+            protected HashSet<CrawlerRegistry.IndexEntry> Execute(CrawlerRegistry registry, HashSet<CrawlerRegistry.IndexEntry> removals)
+            {
+                var entries = new HashSet<CrawlerRegistry.IndexEntry>();
+
+                switch (this.QueryType)
+                {
+                    case QueryType.Word:
+                        entries = registry.GetIndexEntries(this.Word);
+                        break;
+
+                    case QueryType.And:
+                        entries = this.LeftPart.Execute(registry, removals);
+
+                        if (this.RightPart.QueryType == QueryType.Not)
+                        {
+                            var tempRemovals = new HashSet<CrawlerRegistry.IndexEntry>();
+
+                            this.RightPart.Execute(registry, tempRemovals);
+                            entries.ExceptWith(tempRemovals);
+                        }
+                        else { entries.IntersectWith(this.RightPart.Execute(registry, removals)); }
+                        break;
+
+                    case QueryType.Or:
+                        entries = this.LeftPart.Execute(registry, removals);
+                        entries.UnionWith(this.RightPart.Execute(registry, removals));
+                        break;
+
+                    case QueryType.Not:
+                        removals.UnionWith(registry.GetIndexEntries(this.Word));
+                        break;
+                }
+
+                Console.WriteLine("[SubLevel] {0} entries, {1} removals.", entries.Count, removals.Count);
+
+                return entries;
+            }
+
             private void Output(int level, string message)
             {
                 for (var i = 0; i < level; i++)
