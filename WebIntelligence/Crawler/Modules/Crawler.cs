@@ -155,6 +155,23 @@ namespace Crawler.Modules
             Console.ReadLine();
         }
 
+        public void ExecuteRegularQuery(string query)
+        {
+            var rq = new RegularQuery();
+            var results = rq.Execute(query, this.PageRegistry, 25);
+
+            foreach (var result in results)
+            {
+                var info = this.PageRegistry[result.LinkId];
+
+                Console.WriteLine("{0:F4} {1:D} ({2})", result.Score, result.LinkId, info.Address);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Press enter to continue");
+            Console.ReadLine();
+        }
+
         public string NormalizeUri(string baseUri, string checkUri)
         {
             return this.NormalizeUri(new Uri(baseUri), checkUri);
@@ -178,7 +195,8 @@ namespace Crawler.Modules
 
         public void PrintInfo()
         {
-            Console.WriteLine("{0} pages crawled:", this.CrawledPages.Count);
+            Console.WriteLine("{0} pages crawled.", this.CrawledPages.Count);
+            Console.WriteLine("{0} pages in registry. Last ID is {1}.", this.PageRegistry.Count, this.PageRegistry.LastId);
             Console.WriteLine();
             Console.WriteLine("{0} pages left in local queue, {1} in global.", this.LocalQueue.Length,
                               this.Queue.Length);
@@ -330,6 +348,7 @@ namespace Crawler.Modules
         {
             var finished = false;
             long lastCrawl = 0;
+            var errorCount = 0;
             var curLink = "";
             var pagesCrawledTotal = this.CrawledPages.Count;
             var pagesCrawledLocal = 0;
@@ -350,6 +369,19 @@ namespace Crawler.Modules
 
             while (!finished)
             {
+                if (pagesSinceMainQueueFetch > 100 || errorCount > 10)
+                {
+                    Console.Write("Clearing local queue to give other domains a shot... ");
+                    var links = this.LocalQueue.GetOverflow(0);
+
+                    while (links.Count > 0)
+                    {
+                        this.Queue.AddLink(links.Dequeue());
+                    }
+
+                    Console.WriteLine("Done!");
+                }
+
                 if (!this.LocalQueue.HasLink)
                 {
                     Console.WriteLine("No more links in local queue. Need to fetch new ones!");
@@ -357,6 +389,7 @@ namespace Crawler.Modules
                     {
                         this.LocalQueue.ReplaceQueue(this.Queue.GetLinkCollection(curLink));
                         pagesSinceMainQueueFetch = 0;
+                        errorCount = 0;
                     }
                     else { finished = true; }
                     continue;
@@ -396,7 +429,11 @@ namespace Crawler.Modules
                     Console.WriteLine("[URL] {0}", curLink);
                     var parsedPage = this.ParsePage(curLink);
 
-                    if (parsedPage == null) { continue; }
+                    if (parsedPage == null)
+                    {
+                        //errorCount++;
+                        continue;
+                    }
 
                     this.PageRegistry.AddLink(parsedPage);
                     this.CrawledPages.Add(curLink);
@@ -409,21 +446,17 @@ namespace Crawler.Modules
 
                     if (pagesCrawledLocal % 10 == 0) { this.SaveCrawlerData(); }
                     if (pagesCrawledLocal >= this.CrawlCount) { finished = true; }
-
-                    if (pagesSinceMainQueueFetch > 100)
-                    {
-                        Console.Write("Clearing local queue to give other domains a shot... ");
-                        var links = this.LocalQueue.GetOverflow(0);
-
-                        while (links.Count > 0)
-                        {
-                            this.Queue.AddLink(links.Dequeue());
-                        }
-
-                        Console.WriteLine("Done!");
-                    }
                 }
-                catch (Exception e) { Console.WriteLine(e); }
+                catch (WebException we)
+                {
+                    Console.WriteLine(we);
+                    errorCount += 4;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    errorCount++;
+                }
             }
 
             this.SaveCrawlerData();

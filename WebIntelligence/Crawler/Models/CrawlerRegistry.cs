@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using Crawler.Helpers;
@@ -13,18 +14,32 @@ namespace Crawler.Models
     public class CrawlerRegistry
     {
         protected const string FileIdent = "BSCCR";
-        protected const int FileVersion = 1;
+        protected const int FileVersion = 2;
         private SortedDictionary<string, List<IndexEntry>> _index;
+        private Dictionary<int, double> _pageRanks;
         private bool _isDirty;
+        private bool _hasPageRank = false;
 
         public CrawlerRegistry()
         {
+            this.AddressLookup = new Dictionary<string, int>();
             this.Links = new Dictionary<int, CrawlerLink>();
             this.LastId = 0;
         }
 
-        protected int LastId { get; set; }
+        public int LastId { get; protected set; }
         protected Dictionary<int, CrawlerLink> Links { get; set; }
+        protected Dictionary<string, int> AddressLookup { get; set; }
+
+        protected Dictionary<int, double> PageRanks
+        {
+            get
+            {
+                if (!this._hasPageRank) { this.BuildPageRank(); }
+
+                return this._pageRanks;
+            }
+        }
 
         public SortedDictionary<string, List<IndexEntry>> Index
         {
@@ -37,6 +52,8 @@ namespace Crawler.Models
         }
 
         public CrawlerLink this[int index] => this.Links[index];
+
+        public int Count => this.Links.Count;
 
         protected void BuildIndex()
         {
@@ -64,6 +81,26 @@ namespace Crawler.Models
             this._isDirty = false;
         }
 
+        protected void BuildPageRank()
+        {
+            if (this.Count == 0) return;
+
+            const double alpha = 0.1;
+            var invAlpha = 1 - alpha;
+            var entryCount = this.Count;
+            var teleportProp = 1.0 / (double) entryCount;
+            var lookupTable = new int[entryCount];
+            var formerPageRank = new double[entryCount];
+            var pageRank = new double[entryCount];
+            var probMatrix = new double[entryCount, entryCount];
+
+            // TODO Initialise probability matrix
+            // TODO Calculate page rank via power method
+
+            // TODO Set page ranks
+            this._hasPageRank = true;
+        }
+
         public HashSet<IndexEntry> GetIndexEntries(string key)
         {
             if (this.Index.ContainsKey(key.ToLowerInvariant()))
@@ -85,16 +122,20 @@ namespace Crawler.Models
             }
 
             this._isDirty = true;
+            this._hasPageRank = false;
         }
 
         public void AddLink(CrawlerLink link)
         {
+            if (this.AddressLookup.ContainsKey(link.Address)) return;
+
             var nextId = this.LastId + 1;
             link.UniqueId = nextId;
             this.LastId = nextId;
 
             this.Links[nextId] = link;
             this._isDirty = true;
+            this._hasPageRank = false;
         }
 
         public CrawlerLink GetLink(int linkId)
@@ -146,6 +187,7 @@ namespace Crawler.Models
                 throw new FileLoadException("Incorrect file format!");
             }
 
+            var maxId = 0;
             var entryCount = br.ReadInt32();
             for (var i = 0; i < entryCount; i++)
             {
@@ -153,9 +195,13 @@ namespace Crawler.Models
                 var link = new CrawlerLink(br);
 
                 registry.Links.Add(key, link);
+
+                if (key > maxId) { maxId = key; }
             }
 
+            registry.LastId = maxId;
             registry._isDirty = true;
+            registry._hasPageRank = false;
 
             br.Close();
 

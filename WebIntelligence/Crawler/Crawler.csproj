@@ -51,6 +51,7 @@
     <Compile Include="Models\CrawlerLink.cs" />
     <Compile Include="Models\CrawlerQueue.cs" />
     <Compile Include="Models\CrawlerRegistry.cs" />
+    <Compile Include="Models\RegularQuery.cs" />
     <Compile Include="Modules\ConsoleMenu.cs" />
     <Compile Include="Modules\Crawler.cs" />
     <Compile Include="Modules\RobotsParser.cs" />
