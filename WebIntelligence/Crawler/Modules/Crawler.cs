@@ -110,22 +110,30 @@ namespace Crawler.Modules
             var file = File.Create(Path.Combine(Utilities.UserAppDataPath, "index.txt"));
             var sw = new StreamWriter(file);
 
+            Console.Write("Outputting to file... ");
             foreach (var entry in index)
             {
-                Console.Write("{0} -> ", entry.Key);
                 sw.Write("{0} -> ", entry.Key);
-
                 foreach (var value in entry.Value)
                 {
-                    Console.Write("{0}:{1} ", value.LinkId, value.Frequency);
                     sw.Write("{0}:{1} ", value.LinkId, value.Frequency);
                 }
-
-                Console.WriteLine();
                 sw.WriteLine();
             }
 
             sw.Close();
+            Console.WriteLine("Done!");
+
+            var pageRanks = this.PageRegistry.PageRanks.OrderByDescending(rank => rank.Value).Take(25);
+
+            Console.WriteLine("Top 25 URLs by PageRank.");
+            var counter = 1;
+            foreach (var rank in pageRanks)
+            {
+                Console.WriteLine("{0:D2} [{2:F4}] {1}", counter++, this.PageRegistry[rank.Key].Address, rank.Value);
+            }
+
+            GC.Collect();
         }
 
         public void OutputPage(int pageNum)
@@ -157,6 +165,7 @@ namespace Crawler.Modules
 
         public void ExecuteRegularQuery(string query)
         {
+            Console.WriteLine("Executing query without PageRank.");
             var rq = new RegularQuery();
             var results = rq.Execute(query, this.PageRegistry, 25);
 
@@ -165,6 +174,20 @@ namespace Crawler.Modules
                 var info = this.PageRegistry[result.LinkId];
 
                 Console.WriteLine("{0:F4} {1:D} ({2})", result.Score, result.LinkId, info.Address);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Press enter to continue");
+            Console.ReadLine();
+
+            Console.WriteLine("Executing query with PageRank");
+            results = rq.Execute(query, this.PageRegistry, 25, true);
+
+            foreach (var result in results)
+            {
+                var info = this.PageRegistry[result.LinkId];
+
+                Console.WriteLine("{0:F4} [{3:F4}] {1:D} ({2})", result.Score, result.LinkId, info.Address, this.PageRegistry.PageRanks[result.LinkId]);
             }
 
             Console.WriteLine();

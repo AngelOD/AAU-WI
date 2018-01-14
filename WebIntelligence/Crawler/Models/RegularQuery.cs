@@ -10,7 +10,7 @@ namespace Crawler.Models
 {
     public class RegularQuery
     {
-        public LinkedList<IndexEntry> Execute(string query, CrawlerRegistry registry, int maxResults = 25)
+        public LinkedList<IndexEntry> Execute(string query, CrawlerRegistry registry, int maxResults = 25, bool usePageRank = false)
         {
             var tokens = new List<string>(query.ToLower().Split(' '));
             tokens.RemoveAll(token => token.Length <= 1 || StopWords.StopWordsList.Contains(token));
@@ -18,10 +18,10 @@ namespace Crawler.Models
             var stemmer = new PorterStemmer();
             var stemmedTokens = new HashSet<string>(tokens.Select(token => stemmer.StemWord(token.ToLower())));
 
-            return this.Execute(stemmedTokens.ToList(), registry, maxResults);
+            return this.Execute(stemmedTokens.ToList(), registry, maxResults, usePageRank);
         }
 
-        protected LinkedList<IndexEntry> Execute(List<string> tokens, CrawlerRegistry registry, int maxResults)
+        protected LinkedList<IndexEntry> Execute(List<string> tokens, CrawlerRegistry registry, int maxResults, bool usePageRank)
         {
             var queryWeights = this.CalculateQueryWeights(tokens, registry);
             var results = new LinkedList<IndexEntry>();
@@ -55,10 +55,10 @@ namespace Crawler.Models
             }
 
             var sortedScores =
-                (from score in scores
-                orderby score.Value descending
-                select score)
+                scores.OrderByDescending(score => score.Value)
                 .Take(maxResults);
+
+            if (usePageRank) { sortedScores = sortedScores.OrderByDescending(score => registry.PageRanks[score.Key]); }
 
             foreach (var score in sortedScores)
             {
