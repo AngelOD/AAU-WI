@@ -56,9 +56,9 @@ namespace Crawler.Models
 
             var sortedScores =
                 scores.OrderByDescending(score => score.Value)
-                .Take(maxResults);
+                .Take(usePageRank ? maxResults * 4 : maxResults);
 
-            if (usePageRank) { sortedScores = sortedScores.OrderByDescending(score => registry.PageRanks[score.Key]); }
+            if (usePageRank) { sortedScores = sortedScores.OrderByDescending(score => registry.PageRanks[score.Key]).Take(maxResults); }
 
             foreach (var score in sortedScores)
             {

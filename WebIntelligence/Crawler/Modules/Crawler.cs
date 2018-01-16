@@ -155,7 +155,9 @@ namespace Crawler.Modules
 
             foreach (var entry in results)
             {
-                Console.Write("{0}, ", entry.LinkId);
+                var info = this.PageRegistry[entry.LinkId];
+
+                Console.WriteLine("{0:D} ({1})", entry.LinkId, info.Address);
             }
 
             Console.WriteLine();
