@@ -17,7 +17,9 @@ namespace Crawler.Modules
     {
         protected const string UserAgent = "BlazingskiesCrawler/v0.1 (by tristan@blazingskies.dk)";
         protected const string FileIdent = "BSCCP";
+        protected const string FileIdentBlacklist = "BSCBL";
         protected const int FileVersion = 1;
+        protected const int FileVersionBlacklist = 1;
         private int _crawlCount = 1000;
         private long _lastSaved;
 
@@ -25,6 +27,7 @@ namespace Crawler.Modules
 
         public Crawler()
         {
+            this.Blacklist = new HashSet<string>();
             this.CrawledPages = new HashSet<string>();
             this.Queue = new CrawlerQueue();
             this.LocalQueue = new CrawlerQueue();
@@ -92,6 +95,7 @@ namespace Crawler.Modules
         protected CrawlerQueue Queue { get; set; }
         protected CrawlerQueue LocalQueue { get; set; }
         protected CrawlerRegistry PageRegistry { get; set; }
+        public HashSet<string> Blacklist { get; protected set; }
         protected HashSet<string> CrawledPages { get; set; }
         protected Dictionary<string, RobotsParser> RobotsParsers { get; set; }
 
@@ -253,7 +257,7 @@ namespace Crawler.Modules
             Console.WriteLine("A total of {0} pages spanning {1} domains.", this.CrawledPages.Count, domains.Count);
         }
 
-        public CrawlerLink ParsePage(Uri pageUri)
+        protected CrawlerLink ParsePage(Uri pageUri)
         {
             Console.Write("Downloading page... ");
             var wc = this.WebClient;
@@ -291,6 +295,8 @@ namespace Crawler.Modules
                     var newUri = this.NormalizeUri(baseAddress, link);
 
                     links.Add(newUri);
+
+                    if (this.IsBlacklisted(newUri)) { continue; }
 
                     if (baseUri.IsBaseOf(new Uri(newUri)))
                     {
@@ -363,6 +369,11 @@ namespace Crawler.Modules
             return new CrawlerLink(pageUri.AbsoluteUri, bodyText, links);
         }
 
+        private bool IsBlacklisted(string newUri)
+        {
+            return this.Blacklist.Any(entry => newUri.ToLower().Contains(entry.ToLower()));
+        }
+
         public void Crawl(IEnumerable<string> seedUris)
         {
             this.SetSeedUris(seedUris);
@@ -373,6 +384,7 @@ namespace Crawler.Modules
         {
             var finished = false;
             long lastCrawl = 0;
+            long lastCrawlDelay = 1;
             var errorCount = 0;
             var curLink = "";
             var pagesCrawledTotal = this.CrawledPages.Count;
@@ -394,7 +406,7 @@ namespace Crawler.Modules
 
             while (!finished)
             {
-                if (pagesSinceMainQueueFetch > 100 || errorCount > 10)
+                if (pagesSinceMainQueueFetch > (100 / lastCrawlDelay) || errorCount > 10)
                 {
                     Console.Write("Clearing local queue to give other domains a shot... ");
                     var links = this.LocalQueue.GetOverflow(0);
@@ -439,6 +451,7 @@ namespace Crawler.Modules
                     if (timeElapsed < robotsParser.CrawlDelayMilliseconds)
                     {
                         var delay = (int) (robotsParser.CrawlDelayMilliseconds - timeElapsed) + 100;
+                        lastCrawlDelay = robotsParser.CrawlDelay;
                         Console.WriteLine("Sleeping for {0} ms.", delay);
                         Thread.Sleep(delay);
                     }
@@ -510,12 +523,38 @@ namespace Crawler.Modules
             }
         }
 
+        private HashSet<string> LoadBlacklist(string fileName)
+        {
+            var br = Utilities.GetReaderForFile(fileName);
+            var blacklist = new HashSet<string>();
+
+            if (br == null) { return blacklist; }
+
+            // Header
+            var ident = br.ReadString();
+            var ver = br.ReadInt32();
+
+            if (!ident.Equals(FileIdentBlacklist) || ver != FileVersionBlacklist)
+            {
+                throw new FileLoadException("Incorrect format!");
+            }
+
+            // Entries
+            var entryCount = br.ReadInt32();
+            for (var i = 0; i < entryCount; i++) { blacklist.Add(br.ReadString()); }
+
+            br.Close();
+
+            return blacklist;
+        }
+
         private HashSet<string> LoadCrawledPages(string fileName)
         {
-            var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var br = new BinaryReader(file);
+            var br = Utilities.GetReaderForFile(fileName);
+            var crawledPages = new HashSet<string>();
 
-            // TODO Make this better along the same lines as SaveCrawledPages
+            if (br == null) { return crawledPages; }
+
             // Header
             var ident = br.ReadString();
             var ver = br.ReadInt32();
@@ -525,9 +564,8 @@ namespace Crawler.Modules
                 throw new FileLoadException("Incorrect format!");
             }
 
+            // Entries
             var pageCount = br.ReadInt32();
-            var crawledPages = new HashSet<string>();
-
             for (var i = 0; i < pageCount; i++) { crawledPages.Add(br.ReadString()); }
 
             br.Close();
@@ -535,12 +573,28 @@ namespace Crawler.Modules
             return crawledPages;
         }
 
+        private void SaveBlacklist(string fileName)
+        {
+            var bw = Utilities.GetWriterForFile(fileName);
+
+            // Header
+            bw.Write(FileIdentBlacklist);
+            bw.Write(FileVersionBlacklist);
+
+            // Entries
+            bw.Write(this.Blacklist.Count);
+            foreach (var entry in this.Blacklist)
+            {
+                bw.Write(entry);
+            }
+
+            bw.Close();
+        }
+
         private void SaveCrawledPages(string fileName)
         {
-            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var bw = new BinaryWriter(file);
+            var bw = Utilities.GetWriterForFile(fileName);
 
-            // TODO Make this better with some generic function somewhere
             // Header
             bw.Write(FileIdent);
             bw.Write(FileVersion);
@@ -561,6 +615,7 @@ namespace Crawler.Modules
             this.LocalQueue = CrawlerQueue.LoadFromFile("local_queue.dat");
             this.Queue = CrawlerQueue.LoadFromFile("queue.dat");
             this.CrawledPages = this.LoadCrawledPages("crawled_pages.dat");
+            this.Blacklist = this.LoadBlacklist("blacklist.dat");
 
             return true;
         }
@@ -579,6 +634,7 @@ namespace Crawler.Modules
             CrawlerQueue.SaveToFile("local_queue.dat", this.LocalQueue);
             CrawlerQueue.SaveToFile("queue.dat", this.Queue);
             this.SaveCrawledPages("crawled_pages.dat");
+            this.SaveBlacklist("blacklist.dat");
 
             GC.Collect();
 
@@ -591,6 +647,7 @@ namespace Crawler.Modules
             var destPath = Path.Combine(Utilities.UserAppDataPath, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             var fileNames = new[]
                             {
+                                "blacklist.dat",
                                 "registry.dat",
                                 "local_queue.dat",
                                 "queue.dat",

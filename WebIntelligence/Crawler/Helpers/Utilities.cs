@@ -1,6 +1,7 @@
 ﻿#region Using Directives
 using System;
 using System.IO;
+using System.Net;
 #endregion
 
 namespace Crawler.Helpers
@@ -30,6 +31,28 @@ namespace Crawler.Helpers
             var uri = new Uri(url);
 
             return uri.GetLeftPart(UriPartial.Authority);
+        }
+
+        public static BinaryWriter GetWriterForFile(string fileName)
+        {
+            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
+            var bw = new BinaryWriter(file);
+
+            return bw;
+        }
+
+        public static BinaryReader GetReaderForFile(string fileName)
+        {
+            try
+            {
+                var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
+                var br = new BinaryReader(file);
+
+                return br;
+            }
+            catch (FileNotFoundException) {}
+
+            return null;
         }
     }
 }

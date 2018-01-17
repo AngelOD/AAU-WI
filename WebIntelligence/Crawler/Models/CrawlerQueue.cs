@@ -87,10 +87,8 @@ namespace Crawler.Models
 
         public static void SaveToFile(string fileName, CrawlerQueue queue)
         {
-            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var bw = new BinaryWriter(file);
+            var bw = Utilities.GetWriterForFile(fileName);
 
-            // TODO Again make this better
             // Header
             bw.Write(FileIdent);
             bw.Write(FileVersion);
@@ -108,11 +106,11 @@ namespace Crawler.Models
 
         public static CrawlerQueue LoadFromFile(string fileName)
         {
-            var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var br = new BinaryReader(file);
+            var br = Utilities.GetReaderForFile(fileName);
             var queue = new CrawlerQueue();
 
-            // TODO Make LoadFromFile great again!
+            if (br == null) { return queue; }
+
             // Header
             var ident = br.ReadString();
             var ver = br.ReadInt32();

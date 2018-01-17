@@ -239,10 +239,8 @@ namespace Crawler.Models
 
         public static void SaveToFile(string fileName, CrawlerRegistry registry)
         {
-            var file = File.Create(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var bw = new BinaryWriter(file);
+            var bw = Utilities.GetWriterForFile(fileName);
 
-            // TODO Make this betterer!
             // Header
             bw.Write(FileIdent);
             bw.Write(FileVersion);
@@ -260,11 +258,11 @@ namespace Crawler.Models
 
         public static CrawlerRegistry LoadFromFile(string fileName)
         {
-            var file = File.OpenRead(Path.Combine(Utilities.UserAppDataPath, fileName));
-            var br = new BinaryReader(file);
+            var br = Utilities.GetReaderForFile(fileName);
             var registry = new CrawlerRegistry();
 
-            // TODO Make this betterer too!
+            if (br == null) { return registry; }
+
             // Header
             var ident = br.ReadString();
             var ver = br.ReadInt32();

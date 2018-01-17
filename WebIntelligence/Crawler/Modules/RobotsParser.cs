@@ -9,6 +9,7 @@ namespace Crawler.Modules
     public class RobotsParser
     {
         private readonly Dictionary<string, Regex> _regexes;
+        private long _crawlDelay = 1;
 
         /// <summary>
         /// 
@@ -18,7 +19,11 @@ namespace Crawler.Modules
         /// <summary>
         /// 
         /// </summary>
-        public long CrawlDelay { get; protected set; } = 1;
+        public long CrawlDelay
+        {
+            get => this._crawlDelay;
+            protected set => this._crawlDelay = value < 1 ? 1 : value;
+        }
         public long CrawlDelayMilliseconds => this.CrawlDelay * 1000;
 
         /// <summary>

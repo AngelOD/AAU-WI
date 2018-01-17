@@ -168,7 +168,6 @@ namespace Crawler.Models
 
                 Console.WriteLine("[TopLevel] {0} entries, {1} removals.", entries.Count, removals.Count);
 
-                // TODO Is this even necessary?
                 entries.ExceptWith(removals);
 
                 return entries;
