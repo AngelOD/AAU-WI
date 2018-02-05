@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace Sentiment.Models
 {
@@ -145,14 +147,29 @@ namespace Sentiment.Models
             }
         }
 
-        protected Dictionary<int, HashSet<int>> ToAdjacencyList()
+        public Dictionary<int, HashSet<int>> ToAdjacencyList()
         {
             var retVal = new Dictionary<int, HashSet<int>>();
 
             foreach (var node in this._fromNameIndex)
             {
                 retVal[node.Value] = new HashSet<int>();
+
+                foreach (var friend in this.NetworkNodes[node.Key].Friends)
+                {
+                    retVal[node.Value].Add(this._fromNameIndex[friend]);
+                }
             }
+
+            return retVal;
+        }
+
+        public Matrix<int> ToAdjacencyMatrix()
+        {
+            var lst = this.ToAdjacencyList();
+            var retVal = Matrix<int>.Build.Dense(lst.Count, lst.Count);
+
+            //
 
             return retVal;
         }
