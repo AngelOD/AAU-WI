@@ -11,6 +11,9 @@ namespace Sentiment.Models
         public int OutDegree => this.Friends.Count;
         public int Degree => this.InDegree + this.OutDegree;
 
+        public NetworkNode(NetworkNode node) : this(node.Name, node.Friends)
+        { }
+
         public NetworkNode(string name, string friends) : this(name, friends.Trim().Split('\t'))
         { }
 

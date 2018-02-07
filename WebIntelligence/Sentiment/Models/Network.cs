@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace Sentiment.Models
 {
@@ -14,7 +15,7 @@ namespace Sentiment.Models
 
         public Dictionary<string, NetworkNode> NetworkNodes { get; protected set; }
 
-        public Network(string filePath)
+        protected Network()
         {
             this.NetworkNodes = new Dictionary<string, NetworkNode>();
             this._fromNameIndex = new Dictionary<string, int>();
@@ -43,7 +44,10 @@ namespace Sentiment.Models
                                               RegexOptions.IgnoreCase | RegexOptions.Compiled)
                                 }
                             };
+        }
 
+        public Network(string filePath) : this()
+        {
             this.LoadFromFile(filePath);
             this.SetupIndexes();
         }
@@ -127,6 +131,11 @@ namespace Sentiment.Models
             this.NetworkNodes.Add(name, new NetworkNode(name, friends));
         }
 
+        protected void AddNode(NetworkNode node)
+        {
+            this.NetworkNodes.Add(node.Name, new NetworkNode(node));
+        }
+
         protected void CalculateInDegrees()
         {
             foreach (var node in this.NetworkNodes)
@@ -164,14 +173,111 @@ namespace Sentiment.Models
             return retVal;
         }
 
-        public Matrix<int> ToAdjacencyMatrix()
+        public Matrix<double> ToAdjacencyMatrix() { return this.ToAdjacencyMatrix(false); }
+
+        public Matrix<double> ToAdjacencyMatrix(bool forSpectral)
         {
             var lst = this.ToAdjacencyList();
-            var retVal = Matrix<int>.Build.Dense(lst.Count, lst.Count);
+            var retVal = Matrix<double>.Build.Dense(lst.Count, lst.Count);
+            var setValue = (forSpectral ? -1 : 1);
 
-            //
+            foreach (var entry in lst)
+            {
+                var rowEntries = 0;
+
+                foreach (var friend in entry.Value)
+                {
+                    retVal[entry.Key, friend] = setValue;
+                    rowEntries++;
+                }
+
+                if (forSpectral) { retVal[entry.Key, entry.Key] = rowEntries; }
+            }
 
             return retVal;
+        }
+
+        public bool DoSpectralClusteringSplit(out Network n1, out Network n2)
+        {
+            n1 = new Network();
+            n2 = new Network();
+
+            // Setup matrix, eigenvector and sort it
+            Console.WriteLine("Calculating adjacency matrix...");
+            var am = this.ToAdjacencyMatrix(true);
+            Console.WriteLine("Calculating eigenvectors...");
+            var eigenVector = am.Evd().EigenVectors.Column(1);
+            Console.WriteLine("Augmenting eigenvectors...");
+            var augmentIndex = 0;
+            var augmentedEigenVector =
+                (from entry in eigenVector
+                 select new KeyValuePair<int, double>(augmentIndex++, entry))
+                .ToList();
+            Console.WriteLine("Sorting augmented eigenvectors...");
+            var sortedEigenVector = augmentedEigenVector.OrderBy(v => v.Value).ToArray();
+
+            Console.WriteLine("Locating edge to split on...");
+
+            // Find largest difference
+            var maxVal = 0d;
+            var maxIndex = -1;
+
+            for (var i = 1; i < sortedEigenVector.Length; i++)
+            {
+                var diff = Math.Abs(sortedEigenVector[i - 1].Value - sortedEigenVector[i].Value);
+
+                if (!(diff > maxVal)) continue;
+
+                maxIndex = i;
+                maxVal = diff;
+            }
+
+            Console.WriteLine("Adding first nodes to networks...");
+
+            var cluster1 = sortedEigenVector[maxIndex];
+            var cluster2 = sortedEigenVector[maxIndex - 1];
+
+            n1.AddNode(this.NetworkNodes[this._toNameIndex[cluster1.Key]]);
+            n2.AddNode(this.NetworkNodes[this._toNameIndex[cluster2.Key]]);
+
+            Console.WriteLine("Sort nodes into networks...");
+
+            foreach (var entry in augmentedEigenVector)
+            {
+                if (entry.Key == cluster1.Key || entry.Key == cluster2.Key) { continue; }
+
+                var diff1 = Math.Abs(cluster1.Value - entry.Value);
+                var diff2 = Math.Abs(cluster2.Value - entry.Value);
+
+                if (diff1 < diff2)
+                {
+                    n1.AddNode(this.NetworkNodes[this._toNameIndex[entry.Key]]);
+                }
+                else
+                {
+                    n2.AddNode(this.NetworkNodes[this._toNameIndex[entry.Key]]);
+                }
+            }
+
+            // Generate indexes and clean it up
+            Console.WriteLine("Generate indexes for network1...");
+            n1.SetupIndexes();
+            Console.WriteLine("Clean network1...");
+            n1.CleanNetwork();
+            Console.WriteLine("Generate indexes for network2...");
+            n2.SetupIndexes();
+            Console.WriteLine("Clean network2...");
+            n2.CleanNetwork();
+
+            return true;
+        }
+
+        protected void CleanNetwork()
+        {
+            foreach (var node in this.NetworkNodes)
+            {
+                node.Value.Friends.RemoveWhere(friend => !this._fromNameIndex.ContainsKey(friend));
+            }
         }
     }
 }

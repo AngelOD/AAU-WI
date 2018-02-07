@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
+using Sentiment.Models;
 
 namespace Sentiment
 {
@@ -9,6 +10,55 @@ namespace Sentiment
     {
         static void Main(string[] args)
         {
+            const int k = 5;
+
+            var networks = new List<Network>();
+
+            Console.WriteLine("Press enter to start...");
+            Console.ReadLine();
+
+            Console.WriteLine("Loading file...");
+            var network = new Network(@"D:\_Temp\__WI_TestData\friendships.txt");
+            Console.WriteLine("Network has {0} entries.", network.NetworkNodes.Count);
+
+            networks.Add(network);
+
+            while (networks.Count < k)
+            {
+                Console.WriteLine("Finding biggest cluster...");
+
+                Network n = null;
+
+                foreach (var nw in networks)
+                {
+                    if (n == null || nw.NetworkNodes.Count > n.NetworkNodes.Count) { n = nw; }
+                }
+
+                if (n == null) { break; }
+
+                networks.Remove(n);
+
+                Console.WriteLine("Splitting network with {0} entries...", n.NetworkNodes.Count);
+                Console.WriteLine("Performing spectral clustering split...");
+                n.DoSpectralClusteringSplit(out var n1, out var n2);
+
+                Console.WriteLine("Network 1 has {0} entries.", n1.NetworkNodes.Count);
+                Console.WriteLine("Network 2 has {0} entries.", n2.NetworkNodes.Count);
+
+                if (n1.NetworkNodes.Count * 100 < n2.NetworkNodes.Count ||
+                    n2.NetworkNodes.Count * 100 < n1.NetworkNodes.Count)
+                {
+                    networks.Add(n);
+                    break;
+                }
+
+                networks.Add(n1);
+                networks.Add(n2);
+            }
+
+            Console.WriteLine("Found {0} communities out of the {1} that was desired.");
+
+            /*
             double[,] ar =
             {
                 {0,1,1,0,0,0,0,0,0},
@@ -81,6 +131,7 @@ namespace Sentiment
                     Console.WriteLine("Thus {0} belongs with {1}", i, (diffa < diffb ? idxa : idxb));
                 }
             }
+            */
 
             Console.ReadLine();
         }
