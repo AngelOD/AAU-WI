@@ -10,9 +10,8 @@ namespace Sentiment
     {
         static void Main(string[] args)
         {
-            const int k = 5;
-
             var networks = new List<Network>();
+            var newNetworks = new Queue<Network>();
 
             Console.WriteLine("Press enter to start...");
             Console.ReadLine();
@@ -21,118 +20,40 @@ namespace Sentiment
             var network = new Network(@"D:\_Temp\__WI_TestData\friendships.txt");
             Console.WriteLine("Network has {0} entries.", network.NetworkNodes.Count);
 
-            networks.Add(network);
+            newNetworks.Enqueue(network);
 
-            while (networks.Count < k)
+            while (newNetworks.Count > 0)
             {
-                Console.WriteLine("Finding biggest cluster...");
+                Console.WriteLine();
+                Console.WriteLine("Trying to split next network...");
 
-                Network n = null;
-
-                foreach (var nw in networks)
-                {
-                    if (n == null || nw.NetworkNodes.Count > n.NetworkNodes.Count) { n = nw; }
-                }
-
-                if (n == null) { break; }
-
-                networks.Remove(n);
+                var n = newNetworks.Dequeue();
 
                 Console.WriteLine("Splitting network with {0} entries...", n.NetworkNodes.Count);
                 Console.WriteLine("Performing spectral clustering split...");
                 n.DoSpectralClusteringSplit(out var n1, out var n2);
 
-                Console.WriteLine("Network 1 has {0} entries.", n1.NetworkNodes.Count);
-                Console.WriteLine("Network 2 has {0} entries.", n2.NetworkNodes.Count);
+                var n1Count = n1.NetworkNodes.Count;
+                var n2Count = n2.NetworkNodes.Count;
+                var ratio = Math.Min((double)n1Count, n2Count) / Math.Max(n1Count, n2Count);
+                Console.WriteLine("Networks have {0} and {1} entries. (Ratio: {2})", n1Count, n2Count, ratio);
 
-                if (n1.NetworkNodes.Count * 100 < n2.NetworkNodes.Count ||
-                    n2.NetworkNodes.Count * 100 < n1.NetworkNodes.Count)
+                if (ratio <= 0.1)
                 {
+                    Console.WriteLine("Split rejected. Adding original network to finals.");
                     networks.Add(n);
-                    break;
                 }
-
-                networks.Add(n1);
-                networks.Add(n2);
-            }
-
-            Console.WriteLine("Found {0} communities out of the {1} that was desired.");
-
-            /*
-            double[,] ar =
-            {
-                {0,1,1,0,0,0,0,0,0},
-                {1,0,1,0,0,0,0,0,0},
-                {1,1,0,1,1,0,0,0,0},
-                {0,0,1,0,1,1,1,0,0},
-                {0,0,1,1,0,1,1,0,0},
-                {0,0,0,1,1,0,1,1,0},
-                {0,0,0,1,1,1,0,1,0},
-                {0,0,0,0,0,1,1,0,1},
-                {0,0,0,0,0,0,0,1,0}
-            };
-            var a = Matrix<double>.Build.DenseOfArray(ar);
-            var d = Matrix<double>.Build.Diagonal(new double[]
-                                                  {
-                                                      2,
-                                                      2,
-                                                      4,
-                                                      4,
-                                                      4,
-                                                      4,
-                                                      4,
-                                                      3,
-                                                      1
-                                                  });
-            var m = d.Subtract(a);
-
-            var se = m.Evd().EigenVectors.Column(1);
-            var ti = 0;
-            var tse =
-                (from td in se
-                select new KeyValuePair<int, double>(ti++, td))
-                .ToList();
-            var ose = tse.OrderBy(v => v.Value).ToArray();
-            var max = 0.0;
-            var maxI = -1;
-
-            for (var i = 1; i < ose.Length; i++)
-            {
-                var diff = Math.Abs(ose[i - 1].Value - ose[i].Value);
-
-                if (diff > max)
+                else
                 {
-                    maxI = i;
-                    max = diff;
+                    Console.WriteLine("Split accepted. Adding new networks to queue.");
+                    newNetworks.Enqueue(n1);
+                    newNetworks.Enqueue(n2);
                 }
             }
 
-            var idxa = ose[maxI].Key;
-            var idxb = ose[maxI - 1].Key;
+            Console.WriteLine("Found {0} communities.", networks.Count);
 
-            Console.WriteLine(m.Evd().EigenVectors.ToMatrixString());
-            Console.WriteLine();
-            Console.WriteLine("Largest difference between {2}:{0} and {3}:{1}", se[idxb], se[idxa], idxb, idxa);
-
-            var ika = a.Row(idxa);
-            var ikb = a.Row(idxb);
-
-            for (var i = 0; i < ika.Count; i++)
-            {
-                if (ika[i] > 0 && ikb[i] > 0)
-                {
-                    Console.WriteLine("Found shared node {0}", i);
-
-                    var diffa = Math.Abs(se[idxa] - se[i]);
-                    var diffb = Math.Abs(se[idxb] - se[i]);
-
-                    Console.WriteLine("Difference to {0} is {1}", idxa, diffa);
-                    Console.WriteLine("Difference to {0} is {1}", idxb, diffb);
-                    Console.WriteLine("Thus {0} belongs with {1}", i, (diffa < diffb ? idxa : idxb));
-                }
-            }
-            */
-
+            Console.WriteLine("Press enter to continue...");
             Console.ReadLine();
         }
     }

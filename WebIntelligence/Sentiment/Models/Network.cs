@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra;
 
 namespace Sentiment.Models
@@ -17,6 +18,8 @@ namespace Sentiment.Models
 
         protected Network()
         {
+            Control.UseNativeMKL();
+
             this.NetworkNodes = new Dictionary<string, NetworkNode>();
             this._fromNameIndex = new Dictionary<string, int>();
             this._toNameIndex = new Dictionary<int, string>();
