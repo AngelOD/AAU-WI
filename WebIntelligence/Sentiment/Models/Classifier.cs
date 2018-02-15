@@ -28,5 +28,16 @@ namespace Sentiment.Models
                                           RegexOptions.IgnoreCase)
                             };
         }
+
+        public List<string> AddNegationAugments(List<string> words)
+        {
+            var enumerator = words.GetEnumerator();
+            var negated = false;
+
+            while (enumerator.MoveNext())
+            {
+                //
+            }
+        }
     }
 }
