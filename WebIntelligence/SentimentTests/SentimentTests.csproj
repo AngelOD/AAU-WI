@@ -56,6 +56,7 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
+    <Compile Include="Models\HappyFunTokenizerTests.cs" />
     <Compile Include="Models\NetworkNodeTests.cs" />
     <Compile Include="Models\NetworkTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
