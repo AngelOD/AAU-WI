@@ -10,22 +10,22 @@ namespace Sentiment
     {
         static void Main(string[] args)
         {
-            var hft = new HappyFunTokenizer();
-            var c = new Classifier();
-            var words =
-                hft.Tokenize("I don't think I will enjoy it: it might be too spicy.");
-            words.ForEach(Console.WriteLine);
-            Console.WriteLine("--------------------------------");
-            c.AddNegationAugments(words).ForEach(Console.WriteLine);
+            Console.WriteLine("Press enter to start classifier...");
             Console.ReadLine();
 
-            c.LoadTrainingData(@"D:\_Temp\__WI_TestData\SentimentTrainingData.txt");
+            var c = new Classifier();
+
+            for (var i = 1; i < 6; i++)
+            {
+                Console.WriteLine("{0}.0: {1:F4}\t{2:F4}", i, c.GetSentimentProbability(i), c.GetEmptyScoreForSentiment(i));
+            }
+
             Console.ReadLine();
 
             var networks = new List<Network>();
             var newNetworks = new Queue<Network>();
 
-            Console.WriteLine("Press enter to start...");
+            Console.WriteLine("Press enter to start analysis...");
             Console.ReadLine();
 
             Console.WriteLine("Loading file...");
