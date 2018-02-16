@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -88,10 +87,22 @@ namespace Sentiment.Models
         {
             var tokenizer = new HappyFunTokenizer(true);
             var wordList = new Dictionary<string, int>();
-            var entries = new List<ClassifierEntry>();
+            var sentimentCounts = new int[] { 0, 0, 0, 0, 0, 0 };
+            var sentimentWordCounts = new Dictionary<int, int>[6];
+            var indexes = new List<int>();
+            var entries = new List<TrainingEntry>();
             var score = 0;
-            BitArray bits = null;
+            var count = 0;
+            var maxCount = 0;
+            var totalCount = 0;
             string line;
+
+            /*
+             * Read training data, tokenize and store feature vectors in a sparse index to
+             * limit the memory usage.
+             */
+
+            for (var i = 0; i < 6; i++) { sentimentWordCounts[i] = new Dictionary<int, int>(); }
 
             while ((line = sr.ReadLine()) != null)
             {
@@ -99,18 +110,18 @@ namespace Sentiment.Models
 
                 if (line.Length == 0)
                 {
-                    if (bits != null && (bits.Count > 0 && score > 0))
+                    if (indexes != null && (indexes.Count > 0 && score > 0))
                     {
-                        /*
-                        entries.Add(new ClassifierEntry
-                                    {
-                                        score = score,
-                                        featureVector = bits
-                                    });
-                                    */
+                        sentimentCounts[score]++;
+                        //entries.Add(new TrainingEntry { Score = score, Indexes = indexes });
+
+                        count++;
+                        totalCount += indexes.Count;
+
+                        if (indexes.Count > maxCount) { maxCount = indexes.Count; }
 
                         score = 0;
-                        bits = null;
+                        indexes = null;
                     }
 
                     continue;
@@ -126,33 +137,42 @@ namespace Sentiment.Models
                 var rTest = this._regexes["review"].Match(line);
                 if (!rTest.Success) continue;
                 var tokens = this.AddNegationAugments(tokenizer.Tokenize(rTest.Groups["review"].Value));
-                bits = new BitArray(wordList.Count + tokens.Count);
-                bits.SetAll(false);
+                indexes = new List<int>(tokens.Count);
 
                 foreach (var token in tokens)
                 {
                     if (wordList.ContainsKey(token))
                     {
-                        bits.Set(wordList[token], true);
+                        var index = wordList[token];
+                        indexes.Add(index);
+                        sentimentWordCounts[score][index]++;
                     }
                     else
                     {
                         var index = wordList.Count;
                         wordList[token] = index;
-                        bits.Set(index, true);
+                        indexes.Add(index);
+
+                        for (var i = 0; i < 6; i++)
+                        {
+                            sentimentWordCounts[i][index] = 0;
+                        }
+
+                        sentimentWordCounts[score][index]++;
                     }
                 }
             }
 
-            Console.WriteLine("Found {0} entries.", wordList.Count);
+            Console.WriteLine("Bytes: {0} (Average: {1})", maxCount * sizeof(int), ((decimal)totalCount / count) * sizeof(int));
+            Console.WriteLine("Found {0} words and {1} entries.", wordList.Count, count);
 
             return true;
         }
 
-        protected class ClassifierEntry
+        protected struct TrainingEntry
         {
-            public BitArray featureVector;
-            public int score;
+            public int Score;
+            public List<int> Indexes;
         }
     }
 }
