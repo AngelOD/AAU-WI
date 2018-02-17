@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -16,7 +17,7 @@ namespace Sentiment.Models
         private Dictionary<int, int> _sentimentCounts;
         private Dictionary<int, Dictionary<int, int>> _sentimentWordCounts;
         private int _entryCount = 0;
-        private decimal[] _emptyScores = { 1, 1, 1, 1, 1, 1 };
+        private double[] _emptyScores = { 1, 1, 1, 1, 1, 1 };
 
         public Classifier()
         {
@@ -59,33 +60,19 @@ namespace Sentiment.Models
             Console.WriteLine("Data loaded!");
             Console.WriteLine("Calculating score for the empty review...");
 
-            var sentimentProbabilities = new decimal[6];
-            var zeroes = 0;
-            var ones = 0;
-
-            sentimentProbabilities[0] = 0;
-            for (var i = 1; i < 6; i++)
-            {
-                sentimentProbabilities[i] = this.GetSentimentProbability(i);
-                Console.WriteLine(sentimentProbabilities[i]);
-                this._emptyScores[i] = 1;
-            }
-
             foreach (var word in this._wordList)
             {
                 for (var i = 1; i < 6; i++)
                 {
                     var wordProb = this.GetProbabilityOfWordGivenSentimentFast(word.Value, i);
 
-                    if (wordProb == 0) zeroes++;
-                    else if (wordProb >= 1) { ones++; }
-
-                    this._emptyScores[i] *= (1M - wordProb);
+                    this._emptyScores[i] *= 1.0 - wordProb;
                 }
             }
 
+            for (var i = 1; i < 6; i++) { this._emptyScores[i] *= this.GetSentimentProbability(i); }
+
             Console.WriteLine("Done!");
-            Console.WriteLine("{0} Zeroes (results in 1) and {1} ones (results in 0).", zeroes, ones);
         }
 
         protected List<string> AddNegationAugments(List<string> words)
@@ -112,15 +99,86 @@ namespace Sentiment.Models
             return newWords;
         }
 
+        public void RunOnTestingData()
+        {
+            var sr = new StreamReader(@"D:\_Temp\__WI_TestData\SentimentTestingData.txt");
+            var score = 0;
+            var count = 0;
+            var accSucc = 0;
+            var accFail = 0;
+            var estSucc = 0;
+            var estFail = 0;
+            string line;
+            string review = null;
+
+            Console.WriteLine("Running test against test data...");
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                line = line.Trim();
+
+                if (line.Length == 0)
+                {
+                    if (!string.IsNullOrEmpty(review) && score > 0)
+                    {
+                        var testScore = this.Classify(review);
+
+                        if (testScore == score) { accSucc++; }
+                        else { accFail++; }
+
+                        if ((testScore < 3 && score < 3) || (testScore > 3 && score > 3) ||
+                            (testScore == 3 && score == 3)) { estSucc++; }
+                        else { estFail++; }
+
+                        count++;
+                        score = 0;
+                        review = null;
+                    }
+
+                    continue;
+                }
+
+                var sTest = this._regexes["score"].Match(line);
+                if (sTest.Success)
+                {
+                    score = int.Parse(sTest.Groups["score"].Value);
+                    continue;
+                }
+
+                var rTest = this._regexes["review"].Match(line);
+                if (!rTest.Success) continue;
+                review = rTest.Groups["review"].Value;
+            }
+
+            sr.Close();
+
+            if (!string.IsNullOrEmpty(review) && score > 0)
+            {
+                var testScore = this.Classify(review);
+
+                if (testScore == score) { accSucc++; }
+                else { accFail++; }
+
+                if ((testScore < 3 && score < 3) || (testScore > 3 && score > 3) ||
+                    (testScore == 3 && score == 3)) { estSucc++; }
+                else { estFail++; }
+
+                count++;
+            }
+
+            var accSuccPct = (double) accSucc / count * 100.0;
+            var accFailPct = (double) accFail / count * 100.0;
+            var estSuccPct = (double) estSucc / count * 100.0;
+            var estFailPct = (double) estFail / count * 100.0;
+            Console.WriteLine("Acc: {0} ({2}%) successes / {1} ({3}%) failures.", accSucc, accFail, accSuccPct, accFailPct);
+            Console.WriteLine("Est: {0} ({2}%) successes / {1} ({3}%) failures.", estSucc, estFail, estSuccPct, estFailPct);
+        }
+
         protected bool LoadTrainingData(string filePath)
         {
             if (this.LoadCacheTrainingData())
             {
                 Console.WriteLine("Read {0} words and {1} entries.", this._wordList.Count, this._entryCount);
-                foreach (var entry in this._sentimentWordCounts)
-                {
-
-                }
                 return true;
             }
 
@@ -335,7 +393,7 @@ namespace Sentiment.Models
 
             this._entryCount = count;
 
-            Console.WriteLine("Bytes: {0} (Average: {1:F2})", maxCount * sizeof(int), ((decimal)totalCount / count) * sizeof(int));
+            Console.WriteLine("Bytes: {0} (Average: {1:F2})", maxCount * sizeof(int), ((double)totalCount / count) * sizeof(int));
             Console.WriteLine("Found {0} words and {1} entries.", this._wordList.Count, count);
 
             return true;
@@ -343,7 +401,7 @@ namespace Sentiment.Models
 
         protected int AddTrainingEntry(HappyFunTokenizer tokenizer, int score, string review)
         {
-            var addedEntries = new Dictionary<int, bool>();
+            var addedEntries = new HashSet<int>();
             var tokens = this.AddNegationAugments(tokenizer.Tokenize(review));
             var count = 0;
 
@@ -355,11 +413,11 @@ namespace Sentiment.Models
                 {
                     var index = this._wordList[token];
 
-                    if (addedEntries.ContainsKey(index)) { continue; }
+                    if (addedEntries.Contains(index)) { continue; }
 
                     count++;
                     this._sentimentWordCounts[score][index]++;
-                    addedEntries[index] = true;
+                    addedEntries.Add(index);
                 }
                 else
                 {
@@ -373,30 +431,30 @@ namespace Sentiment.Models
                     }
 
                     this._sentimentWordCounts[score][index]++;
-                    addedEntries[index] = true;
+                    addedEntries.Add(index);
                 }
             }
 
             return count;
         }
 
-        public decimal GetSentimentProbability(int sentiment)
+        public double GetSentimentProbability(int sentiment)
         {
             if (sentiment < 1 || sentiment > 5 || this._entryCount == 0) { return -1; }
 
-            return (decimal) this._sentimentCounts[sentiment] / this._entryCount;
+            return (double) this._sentimentCounts[sentiment] / this._entryCount;
         }
 
-        public decimal GetProbabilityOfWordGivenSentiment(int wordIndex, int sentiment)
+        public double GetProbabilityOfWordGivenSentiment(int wordIndex, int sentiment)
         {
             if (!this._wordList.ContainsValue(wordIndex) || this._sentimentCounts[sentiment] == 0) { return -1; }
 
-            return (decimal)this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
+            return (double)this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
         }
 
-        protected decimal GetProbabilityOfWordGivenSentimentFast(int wordIndex, int sentiment)
+        protected double GetProbabilityOfWordGivenSentimentFast(int wordIndex, int sentiment)
         {
-            var result = (decimal) this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
+            var result = (double) this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
             if (result > 1)
             {
                 Console.WriteLine("Huh? c = {0}, xi = {1}, N(xi,c) = {2}, N(c) = {3}, p(xi|c) = {4}",
@@ -409,11 +467,38 @@ namespace Sentiment.Models
             return result;
         }
 
-        public decimal GetEmptyScoreForSentiment(int sentiment)
+        public double GetEmptyScoreForSentiment(int sentiment)
         {
             if (sentiment < 1 || sentiment > 5) { return -1; }
 
             return this._emptyScores[sentiment];
+        }
+
+        public int Classify(string review)
+        {
+            var tokenizer = new HappyFunTokenizer(true);
+            var tokens = this.AddNegationAugments(tokenizer.Tokenize(review));
+            var scores = new Dictionary<int, double>();
+
+            for (var i = 1; i < 6; i++) { scores[i] = this.GetEmptyScoreForSentiment(i); }
+
+            foreach (var token in tokens)
+            {
+                if (!Utilities.CheckUtf8(token)) { continue; }
+
+                if (!this._wordList.ContainsKey(token)) { continue; }
+
+                var index = this._wordList[token];
+
+                for (var i = 1; i < 6; i++)
+                {
+                    var score = this.GetProbabilityOfWordGivenSentimentFast(index, i);
+
+                    scores[i] *= score / (1.0 - score);
+                }
+            }
+
+            return scores.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
         }
     }
 }

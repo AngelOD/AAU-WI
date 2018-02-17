@@ -74,6 +74,8 @@ namespace Sentiment.Models
         {
             var friends = "";
             var name = "";
+            var review = "";
+            var summary = "";
             string line;
 
             while ((line = sr.ReadLine()) != null)
@@ -82,11 +84,13 @@ namespace Sentiment.Models
 
                 if (line.Length == 0)
                 {
-                    if (name.Length > 0 && friends.Length > 0)
+                    if (!string.IsNullOrEmpty(friends) && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(review) && !string.IsNullOrEmpty(summary))
                     {
-                        this.AddNode(name, friends);
+                        this.AddNode(name, friends, summary, review);
                         name = "";
                         friends = "";
+                        summary = "";
+                        review = "";
                     }
 
                     continue;
@@ -109,29 +113,26 @@ namespace Sentiment.Models
                 var sTest = this._regexes["summary"].Match(line);
                 if (sTest.Success)
                 {
-                    //
+                    summary = sTest.Groups["summary"].Value.Trim();
                     continue;
                 }
 
                 var rTest = this._regexes["review"].Match(line);
-                if (rTest.Success)
-                {
-                    //
-                    continue;
-                }
+                if (!rTest.Success) continue;
+                review = rTest.Groups["review"].Value.Trim();
             }
 
-            if (name.Length > 0 && friends.Length > 0)
+            if (!string.IsNullOrEmpty(friends) && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(review) && !string.IsNullOrEmpty(summary))
             {
-                this.AddNode(name, friends);
+                this.AddNode(name, friends, summary, review);
             }
 
             return true;
         }
 
-        protected void AddNode(string name, string friends)
+        protected void AddNode(string name, string friends, string summary, string review)
         {
-            this.NetworkNodes.Add(name, new NetworkNode(name, friends));
+            this.NetworkNodes.Add(name, new NetworkNode(name, friends, summary, review));
         }
 
         protected void AddNode(NetworkNode node)
@@ -272,6 +273,9 @@ namespace Sentiment.Models
             Console.WriteLine("Clean network2...");
             n2.CleanNetwork();
 
+            // Clean up
+            GC.Collect();
+
             return true;
         }
 
@@ -281,6 +285,51 @@ namespace Sentiment.Models
             {
                 node.Value.Friends.RemoveWhere(friend => !this._fromNameIndex.ContainsKey(friend));
             }
+        }
+
+        public void ClassifyNetwork()
+        {
+            this.ClassifyNetwork(new Classifier());
+        }
+
+        public void ClassifyNetwork(Classifier classifier)
+        {
+            var empty = 0;
+            var positive = 0;
+            var negative = 0;
+            var neutral = 0;
+            var total = 0;
+
+            Console.WriteLine("Classifying network with {0} nodes.", this.NetworkNodes.Count);
+
+            foreach (var node in this.NetworkNodes)
+            {
+                var score = node.Value.ClassifyReview(classifier);
+
+                if (score > 0) { total++; }
+
+                switch (score)
+                {
+                    case 0:
+                        empty++;
+                        break;
+                    case 1:
+                    case 2:
+                        negative++;
+                        break;
+                    case 4:
+                    case 5:
+                        positive++;
+                        break;
+                    default:
+                        neutral++;
+                        break;
+                }
+            }
+
+            Console.WriteLine("Done!");
+            Console.WriteLine("Found {0} reviews (leaving {1} without a review).", total, empty);
+            Console.WriteLine("{0} positive / {1} neutral / {2} negative", positive, neutral, negative);
         }
     }
 }
