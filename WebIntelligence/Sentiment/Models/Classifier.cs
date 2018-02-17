@@ -343,6 +343,7 @@ namespace Sentiment.Models
 
         protected int AddTrainingEntry(HappyFunTokenizer tokenizer, int score, string review)
         {
+            var addedEntries = new Dictionary<int, bool>();
             var tokens = this.AddNegationAugments(tokenizer.Tokenize(review));
             var count = 0;
 
@@ -353,8 +354,12 @@ namespace Sentiment.Models
                 if (this._wordList.ContainsKey(token))
                 {
                     var index = this._wordList[token];
+
+                    if (addedEntries.ContainsKey(index)) { continue; }
+
                     count++;
                     this._sentimentWordCounts[score][index]++;
+                    addedEntries[index] = true;
                 }
                 else
                 {
@@ -368,6 +373,7 @@ namespace Sentiment.Models
                     }
 
                     this._sentimentWordCounts[score][index]++;
+                    addedEntries[index] = true;
                 }
             }
 
