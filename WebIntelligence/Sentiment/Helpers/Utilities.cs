@@ -1,6 +1,7 @@
 ﻿#region Using Directives
 using System;
 using System.IO;
+using System.Text;
 #endregion
 
 namespace Sentiment.Helpers
@@ -52,6 +53,16 @@ namespace Sentiment.Helpers
             catch (FileNotFoundException) {}
 
             return null;
+        }
+
+        public static bool CheckUtf8(string data)
+        {
+            var plainTextBytes = Encoding.UTF8.GetBytes(data);
+            var encodedWord = Convert.ToBase64String(plainTextBytes);
+            var wordBytes = Convert.FromBase64String(encodedWord);
+            var decodedWord = Encoding.UTF8.GetString(wordBytes);
+
+            return decodedWord.Equals(data);
         }
     }
 }

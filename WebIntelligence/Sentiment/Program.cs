@@ -17,7 +17,7 @@ namespace Sentiment
 
             for (var i = 1; i < 6; i++)
             {
-                Console.WriteLine("{0}.0: {1:F4}\t{2:F4}", i, c.GetSentimentProbability(i), c.GetEmptyScoreForSentiment(i));
+                Console.WriteLine("{0}.0: {1:F4}\t{2}", i, c.GetSentimentProbability(i), c.GetEmptyScoreForSentiment(i));
             }
 
             Console.ReadLine();

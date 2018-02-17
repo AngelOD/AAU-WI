@@ -60,19 +60,32 @@ namespace Sentiment.Models
             Console.WriteLine("Calculating score for the empty review...");
 
             var sentimentProbabilities = new decimal[6];
+            var zeroes = 0;
+            var ones = 0;
 
             sentimentProbabilities[0] = 0;
-            for (var i = 1; i < 6; i++) { sentimentProbabilities[i] = this.GetSentimentProbability(i); }
+            for (var i = 1; i < 6; i++)
+            {
+                sentimentProbabilities[i] = this.GetSentimentProbability(i);
+                Console.WriteLine(sentimentProbabilities[i]);
+                this._emptyScores[i] = 1;
+            }
 
             foreach (var word in this._wordList)
             {
                 for (var i = 1; i < 6; i++)
                 {
-                    this._emptyScores[i] *= (1 - this.GetProbabilityOfWordGivenSentimentFast(word.Value, i)) * sentimentProbabilities[i];
+                    var wordProb = this.GetProbabilityOfWordGivenSentimentFast(word.Value, i);
+
+                    if (wordProb == 0) zeroes++;
+                    else if (wordProb >= 1) { ones++; }
+
+                    this._emptyScores[i] *= (1M - wordProb);
                 }
             }
 
             Console.WriteLine("Done!");
+            Console.WriteLine("{0} Zeroes (results in 1) and {1} ones (results in 0).", zeroes, ones);
         }
 
         protected List<string> AddNegationAugments(List<string> words)
@@ -151,6 +164,54 @@ namespace Sentiment.Models
             }
 
             bw.Close();
+
+
+            // Output debug file if needed!
+            var debugFile = Path.Combine(Utilities.UserAppDataPath, "debug.txt");
+            if (File.Exists(debugFile)) return;
+
+            var sw = new StreamWriter(debugFile)
+                     {
+                         AutoFlush = true
+                     };
+
+            // Word list
+            sw.WriteLine("Word list");
+            foreach (var word in this._wordList)
+            {
+                try
+                {
+                    var toWrite = $"{word.Value:D}\t{word.Key}";
+                    sw.WriteLine(toWrite);
+                }
+                catch (EncoderFallbackException)
+                {
+                }
+            }
+            sw.WriteLine();
+
+            // Sentiment counts
+            sw.WriteLine("Sentiment counts");
+            for (var i = 0; i < 6; i++)
+            {
+                sw.WriteLine("{0}\t{1}", i, this._sentimentCounts[i]);
+            }
+            sw.WriteLine();
+
+            // Sentiment word counts
+            sw.WriteLine("Sentiment word counts");
+            for (var i = 0; i < 6; i++)
+            {
+                sw.WriteLine(".:: {0} ({1})", i, this._sentimentWordCounts[i].Count);
+
+                foreach (var entry in this._sentimentWordCounts[i])
+                {
+                    sw.WriteLine("{0}\t{1}", entry.Key, entry.Value);
+                }
+            }
+            sw.WriteLine();
+
+            sw.Close();
         }
 
         protected bool LoadCacheTrainingData()
@@ -205,12 +266,12 @@ namespace Sentiment.Models
         protected bool ProcessTrainingFile(StreamReader sr)
         {
             var tokenizer = new HappyFunTokenizer(true);
-            var indexes = new List<int>();
             var score = 0;
             var count = 0;
             var maxCount = 0;
             var totalCount = 0;
             string line;
+            string review = null;
 
             /*
              * Read training data, tokenize and store feature vectors in a sparse index to
@@ -232,17 +293,18 @@ namespace Sentiment.Models
 
                 if (line.Length == 0)
                 {
-                    if (indexes != null && (indexes.Count > 0 && score > 0))
+                    if (!string.IsNullOrEmpty(review) && score > 0)
                     {
+                        var tokenCount = this.AddTrainingEntry(tokenizer, score, review);
                         this._sentimentCounts[score]++;
 
                         count++;
-                        totalCount += indexes.Count;
+                        totalCount += tokenCount;
 
-                        if (indexes.Count > maxCount) { maxCount = indexes.Count; }
+                        if (tokenCount > maxCount) { maxCount = tokenCount; }
 
                         score = 0;
-                        indexes = null;
+                        review = null;
                     }
 
                     continue;
@@ -257,48 +319,59 @@ namespace Sentiment.Models
 
                 var rTest = this._regexes["review"].Match(line);
                 if (!rTest.Success) continue;
-                var tokens = this.AddNegationAugments(tokenizer.Tokenize(rTest.Groups["review"].Value));
-                indexes = new List<int>(tokens.Count);
-
-                foreach (var token in tokens)
-                {
-                    if (this._wordList.ContainsKey(token))
-                    {
-                        var index = this._wordList[token];
-                        indexes.Add(index);
-                        this._sentimentWordCounts[score][index]++;
-                    }
-                    else
-                    {
-                        var index = this._wordList.Count;
-                        this._wordList[token] = index;
-                        indexes.Add(index);
-
-                        for (var i = 0; i < 6; i++)
-                        {
-                            this._sentimentWordCounts[i][index] = 0;
-                        }
-
-                        this._sentimentWordCounts[score][index]++;
-                    }
-                }
+                review = rTest.Groups["review"].Value;
             }
 
-            if (indexes != null && (indexes.Count > 0 && score > 0))
+            if (!string.IsNullOrEmpty(review) && score > 0)
             {
+                var tokenCount = this.AddTrainingEntry(tokenizer, score, review);
                 this._sentimentCounts[score]++;
-                count++;
-                totalCount += indexes.Count;
 
-                if (indexes.Count > maxCount) { maxCount = indexes.Count; }
+                count++;
+                totalCount += tokenCount;
+
+                if (tokenCount > maxCount) { maxCount = tokenCount; }
             }
 
             this._entryCount = count;
 
-            Console.WriteLine("Bytes: {0} (Average: {1})", maxCount * sizeof(int), ((decimal)totalCount / count) * sizeof(int));
+            Console.WriteLine("Bytes: {0} (Average: {1:F2})", maxCount * sizeof(int), ((decimal)totalCount / count) * sizeof(int));
             Console.WriteLine("Found {0} words and {1} entries.", this._wordList.Count, count);
 
             return true;
+        }
+
+        protected int AddTrainingEntry(HappyFunTokenizer tokenizer, int score, string review)
+        {
+            var tokens = this.AddNegationAugments(tokenizer.Tokenize(review));
+            var count = 0;
+
+            foreach (var token in tokens)
+            {
+                if (!Utilities.CheckUtf8(token)) { continue; }
+
+                if (this._wordList.ContainsKey(token))
+                {
+                    var index = this._wordList[token];
+                    count++;
+                    this._sentimentWordCounts[score][index]++;
+                }
+                else
+                {
+                    var index = this._wordList.Count;
+                    this._wordList[token] = index;
+                    count++;
+
+                    for (var i = 0; i < 6; i++)
+                    {
+                        this._sentimentWordCounts[i][index] = 0;
+                    }
+
+                    this._sentimentWordCounts[score][index]++;
+                }
+            }
+
+            return count;
         }
 
         public decimal GetSentimentProbability(int sentiment)
@@ -317,7 +390,17 @@ namespace Sentiment.Models
 
         protected decimal GetProbabilityOfWordGivenSentimentFast(int wordIndex, int sentiment)
         {
-            return (decimal)this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
+            var result = (decimal) this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
+            if (result > 1)
+            {
+                Console.WriteLine("Huh? c = {0}, xi = {1}, N(xi,c) = {2}, N(c) = {3}, p(xi|c) = {4}",
+                                  sentiment,
+                                  wordIndex,
+                                  this._sentimentWordCounts[sentiment][wordIndex],
+                                  this._sentimentCounts[sentiment],
+                                  result);
+            }
+            return result;
         }
 
         public decimal GetEmptyScoreForSentiment(int sentiment)
