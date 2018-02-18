@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Sentiment.Helpers;
@@ -12,6 +10,7 @@ namespace Sentiment.Models
 {
     public class Classifier
     {
+        private const bool _preserveCase = true;
         private readonly Dictionary<string, Regex> _regexes;
         private Dictionary<string, int> _wordList;
         private Dictionary<int, int> _sentimentCounts;
@@ -323,7 +322,7 @@ namespace Sentiment.Models
 
         protected bool ProcessTrainingFile(StreamReader sr)
         {
-            var tokenizer = new HappyFunTokenizer(true);
+            var tokenizer = new HappyFunTokenizer(_preserveCase);
             var score = 0;
             var count = 0;
             var maxCount = 0;
@@ -442,28 +441,14 @@ namespace Sentiment.Models
         {
             if (sentiment < 1 || sentiment > 5 || this._entryCount == 0) { return -1; }
 
-            return (double) this._sentimentCounts[sentiment] / this._entryCount;
+            return (double) (this._sentimentCounts[sentiment] + 1) / (this._entryCount + 5);
         }
 
-        public double GetProbabilityOfWordGivenSentiment(int wordIndex, int sentiment)
+        public double GetProbabilityOfWordGivenSentimentFast(int wordIndex, int sentiment)
         {
-            if (!this._wordList.ContainsValue(wordIndex) || this._sentimentCounts[sentiment] == 0) { return -1; }
+            var result = (double) (this._sentimentWordCounts[sentiment][wordIndex] + 1) /
+                         (this._sentimentCounts[sentiment] + this._wordList.Count);
 
-            return (double)this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
-        }
-
-        protected double GetProbabilityOfWordGivenSentimentFast(int wordIndex, int sentiment)
-        {
-            var result = (double) this._sentimentWordCounts[sentiment][wordIndex] / this._sentimentCounts[sentiment];
-            if (result > 1)
-            {
-                Console.WriteLine("Huh? c = {0}, xi = {1}, N(xi,c) = {2}, N(c) = {3}, p(xi|c) = {4}",
-                                  sentiment,
-                                  wordIndex,
-                                  this._sentimentWordCounts[sentiment][wordIndex],
-                                  this._sentimentCounts[sentiment],
-                                  result);
-            }
             return result;
         }
 
@@ -476,7 +461,7 @@ namespace Sentiment.Models
 
         public int Classify(string review)
         {
-            var tokenizer = new HappyFunTokenizer(true);
+            var tokenizer = new HappyFunTokenizer(_preserveCase);
             var tokens = this.AddNegationAugments(tokenizer.Tokenize(review));
             var scores = new Dictionary<int, double>();
 

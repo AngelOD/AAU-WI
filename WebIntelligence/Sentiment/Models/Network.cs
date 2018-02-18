@@ -206,6 +206,9 @@ namespace Sentiment.Models
             n1 = new Network();
             n2 = new Network();
 
+            // Clean up
+            GC.Collect();
+
             // Setup matrix, eigenvector and sort it
             Console.WriteLine("Calculating adjacency matrix...");
             var am = this.ToAdjacencyMatrix(true);
