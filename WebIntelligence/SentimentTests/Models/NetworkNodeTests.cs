@@ -14,7 +14,7 @@ namespace Sentiment.Models.Tests
         [TestMethod()]
         public void NetworkNodeTest()
         {
-            var nn = new NetworkNode("abagael", @"	joey	gretel	beitris	nani	junia	");
+            var nn = new NetworkNode("abagael", @"	joey	gretel	beitris	nani	junia	", "*", "*");
 
             Assert.AreEqual("abagael", nn.Name);
             Assert.AreEqual(5, nn.Friends.Count);
